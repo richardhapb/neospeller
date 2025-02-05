@@ -98,7 +98,7 @@ fn comments_to_json(
 
 fn check_grammar(json_data: &str) -> Result<String, Box<dyn std::error::Error>> {
     let openai_token = env::var("OPENAI_API_KEY")?;
-    let initial_prompt = "I will send you a JSON with comments of a Python source, check the grammar, ensure that it is straightforward, clear, and concise. You should respond with the same format, the line, and the text. You can add lines if that continues to be clear; for that, you need to insert a new element with the next line number. Give me the lines ordered by line number descending.";
+    let initial_prompt = "I will send you a JSON with comments of a Python source, check the grammar, ensure that it is straightforward, clear, and concise. You should respond with the same format, the line, and the text. You can add lines if that continues to be clear; for that, you need to insert a new element with the next line number. Give me the lines ordered by line number descending. Use peridos at end of line is not necessary";
 
     let url = "https://api.openai.com/v1/chat/completions";
     let client = Client::new();
