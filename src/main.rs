@@ -1,26 +1,202 @@
-use std::io::{self, Read};
-use std::env;
 use reqwest::blocking::Client;
 use serde_json::json;
+use std::collections::HashMap;
+use std::env;
+use std::io::{self, Read};
+
+enum CommentType {
+    Single,
+    Multi,
+}
+
+struct Comment<'a> {
+    line: usize,
+    text: String,
+    comment_type: &'a CommentType,
+}
+
+struct Language {
+    name: String,
+    comment_symbol: String,
+    ml_comment_symbol: String,
+    ml_comment_symbol_close: String,
+}
+
+impl Language {
+    fn get_comment_type(&self, line: &str) -> &CommentType {
+        if line.find(&self.ml_comment_symbol).is_some() {
+            return &CommentType::Multi;
+        }
+
+        &CommentType::Single
+    }
+
+    fn get_comments(&self, input: &str) -> Vec<Comment> {
+        let mut comments = Vec::new();
+        let symbol_close = &self.ml_comment_symbol_close;
+
+        let lines = input.lines();
+        let mut capturing = false;
+
+        for (i, line) in lines.enumerate() {
+            let comment_type = if capturing {
+                &CommentType::Multi
+            } else {
+                self.get_comment_type(&line)
+            };
+
+            let trimed_line = line.trim();
+            let closure = trimed_line.find(symbol_close);
+
+            let symbol = match self.get_comment_type(line) {
+                CommentType::Single => &self.comment_symbol,
+                CommentType::Multi => &self.ml_comment_symbol,
+            };
+
+            if capturing && closure.is_some() {
+                capturing = false;
+
+                let closure = closure.unwrap();
+
+                if closure + trimed_line.len() > symbol_close.len() {
+                    comments.push(Comment {
+                        line: i,
+                        text: trimed_line[..closure].trim().to_string(),
+                        comment_type,
+                    })
+                }
+                continue;
+            }
+
+            if let Some(col) = trimed_line.find(symbol) {
+                let comment_length = trimed_line.len();
+                let cut = match comment_type {
+                    CommentType::Multi => {
+                        if comment_length > symbol.len() {
+                            capturing = false;
+                            if symbol == symbol_close {
+                                Some(trimed_line.replace(symbol, "").len() + symbol.len())
+                            } else {
+                                Some(comment_length)
+                            }
+                        } else {
+                            capturing = true;
+                            Some(comment_length)
+                        }
+                    }
+
+                    CommentType::Single => Some(comment_length),
+                };
+
+                let cut = cut.unwrap_or(comment_length);
+
+                let text = trimed_line[col + symbol.len()..cut].trim().to_string();
+
+                if text.len() > 0 {
+                    comments.push(Comment {
+                        line: i + 1,
+                        text,
+                        comment_type,
+                    });
+                }
+                continue;
+            }
+
+            if capturing {
+                comments.push(Comment {
+                    line: i + 1,
+                    text: line.trim().to_string(),
+                    comment_type,
+                });
+            }
+        }
+
+        comments
+    }
+}
+
+struct SupportedLanguages {
+    languages: Vec<Language>,
+}
+
+fn init_supported_languages() -> SupportedLanguages {
+    let mut languages = Vec::new();
+
+    let python = Language {
+        name: "python".to_string(),
+        comment_symbol: "#".to_string(),
+        ml_comment_symbol: "\"\"\"".to_string(),
+        ml_comment_symbol_close: "\"\"\"".to_string(),
+    };
+
+    let javascript = Language {
+        name: "javascript".to_string(),
+        comment_symbol: "//".to_string(),
+        ml_comment_symbol: "/*".to_string(),
+        ml_comment_symbol_close: "*/".to_string(),
+    };
+
+    let rust = Language {
+        name: "rust".to_string(),
+        comment_symbol: "//".to_string(),
+        ml_comment_symbol: "/*".to_string(),
+        ml_comment_symbol_close: "*/".to_string(),
+    };
+
+    let css = Language {
+        name: "css".to_string(),
+        comment_symbol: "//".to_string(),
+        ml_comment_symbol: "/*".to_string(),
+        ml_comment_symbol_close: "*/".to_string(),
+    };
+
+    languages.push(python);
+    languages.push(javascript);
+    languages.push(rust);
+    languages.push(css);
+
+    SupportedLanguages { languages }
+}
 
 fn main() {
+    let mut args = env::args();
+
+    if args.len() < 2 {
+        println!("The --lang attribute is required. (e.g. --lang python)");
+        return;
+    }
+
+    let mut language: Option<Language> = None;
+
+    while let Some(arg) = args.next() {
+        if arg == "--lang" {
+            let supported_languages = init_supported_languages();
+            let lang = args.next().expect("Language not found (e.g. python)");
+            let lang = lang.trim().to_lowercase();
+
+            language = supported_languages
+                .languages
+                .into_iter()
+                .find(|l| l.name == lang);
+
+            break;
+        }
+    }
+
+    if language.is_none() {
+        println!("Error: Language not supported or not specified.");
+        return;
+    }
+
+    let language = language.unwrap();
+
     let mut input = String::new();
     io::stdin().read_to_string(&mut input).unwrap();
 
-    let comment_symbol: char = '#';
-    let comment_qtd: usize = 1;
-    let ml_comment_symbol: char = '"';
-    let ml_comment_qtd: usize = 3;
+    let comments = language.get_comments(&input);
+    let parsed_comments = comments_to_json(&comments);
 
-    let comments = comments_to_json(&input, comment_symbol, comment_qtd, false);
-    let ml_comments = comments_to_json(&input, ml_comment_symbol, ml_comment_qtd, true);
-
-    let parsed_json = format!(
-        "{{\"comments\": {}, \"ml_comments\": {}}}",
-        comments, ml_comments
-    );
-
-    let output = check_grammar(&parsed_json).unwrap();
+    let output = check_grammar(&parsed_comments).unwrap();
 
     if output.contains("error") {
         println!("Error: {}", output);
@@ -30,79 +206,71 @@ fn main() {
     print!("{}", output);
 }
 
+fn add_quotes(text: &str) -> String {
+    format!("\"{}\"", text.replace("\"", "\\\""))
+}
+
 // Captures comments from a text and returns a JSON object
-fn comments_to_json(
-    input: &str,
-    comment_symbol: char,
-    comment_qtd: usize,
-    multiline: bool,
-) -> String {
+fn comments_to_json(comments: &Vec<Comment>) -> String {
     let mut output = String::new();
+    let mut single_comments: HashMap<String, String> = Default::default();
+    let mut ml_comments: HashMap<String, String> = Default::default();
 
     output.push_str("{");
 
-    let lines: Vec<String> = input.split("\n").map(String::from).collect();
-    let mut lineno = 0;
-    let mut capturing = false;
-
-    for line in lines.iter() {
-        lineno += 1;
-
-        let mut qtd = 0;
-        let mut comment = false;
-        let mut column = 0;
-
-        for c in line.chars() {
-            column += 1;
-            if c == comment_symbol {
-                qtd += 1;
-                if qtd == comment_qtd {
-                    capturing = !capturing && multiline;
-                    comment = true;
-                    break;
-                }
-            }
-        }
-
-        if comment || capturing {
-            let mut new_line = String::new();
-
-            if capturing && !comment {
-                new_line.push_str(&line.trim().to_string());
-            }
-
-            if !multiline {
-                new_line.push_str(&line[column..]);
-            }
-
-            if capturing && comment && line.trim().to_string().len() > comment_qtd {
-                let clean_line = line.trim().to_string();
-                // Remove the comment symbol on init and end
-                new_line.push_str(&clean_line[comment_qtd..clean_line.len() - comment_qtd]);
-                capturing = false;
-            }
-
-            new_line = new_line.trim().to_string();
-
-            if new_line.len() > 0 {
-                output.push_str(&format!("\"{}\": \"{}\",", lineno, new_line));
-            }
-        }
+    for comment in comments.iter() {
+        match comment.comment_type {
+            CommentType::Single => single_comments.insert(
+                add_quotes(&comment.line.to_string()),
+                add_quotes(&comment.text.clone()),
+            ),
+            CommentType::Multi => ml_comments.insert(
+                add_quotes(&comment.line.to_string()),
+                add_quotes(&comment.text),
+            ),
+        };
     }
 
-    output.pop();
-    output.push_str("}");
+    if single_comments.len() > 0 {
+        output.push_str("\"single_comments\": {");
+        for (lineno, text) in &single_comments {
+            output.push_str(&format!("{}: {},", lineno, text));
+        }
+        output.pop();
+        output.push('}');
+    }
 
+    if ml_comments.len() > 0 {
+        if single_comments.len() > 0 {
+            output.push(',');
+        }
+
+        output.push_str("\"multiline_comments\": {");
+        for (lineno, text) in &ml_comments {
+            output.push_str(&format!("{}: {},", lineno, text));
+        }
+        output.pop();
+        output.push('}');
+    }
+
+    output.push_str("}");
     output
 }
 
 fn check_grammar(json_data: &str) -> Result<String, Box<dyn std::error::Error>> {
     let openai_token = env::var("OPENAI_API_KEY")?;
-    let initial_prompt = "I will send you a JSON with comments of a Python source, check the grammar, ensure that it is straightforward, clear, and concise. You should respond with the same format, the line, and the text. You can add lines if that continues to be clear; for that, you need to insert a new element with the next line number. Give me the lines ordered by line number descending. Use peridos at end of line is not necessary";
+
+    let initial_prompt = r#"I will send you a JSON containing comments from a Python source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
+
+- You may add new lines if necessary to maintain clarity, but they must be consecutive and properly numbered.
+- Return the lines in descending order by line number.
+- Do not add periods at the end of lines unless they are necessary for clarity.
+- Do not remove formatters such as '-' or '*'; preserve the original formatting and change only the text when necessary.
+- Do not mix single-line comments with multi-line comments; keep them separate."#;
 
     let url = "https://api.openai.com/v1/chat/completions";
     let client = Client::new();
-    
+
     let res = client
         .post(url)
         .header("Authorization", format!("Bearer {}", openai_token))
@@ -119,7 +287,7 @@ fn check_grammar(json_data: &str) -> Result<String, Box<dyn std::error::Error>> 
                     "content": json_data
                 }
             ],
-            "max_completion_tokens": 1000,
+            "max_completion_tokens": 2000,
             "temperature": 0.5,
             "response_format": {"type": "json_object"}
         }))

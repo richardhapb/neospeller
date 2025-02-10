@@ -13,4 +13,4 @@ fi
 
 cargo build --release
 
-sudo ln -s $(pwd)/target/release/$(basename $(pwd)) /usr/local/bin/$(basename $(pwd))
+sudo ln -sf $(pwd)/target/release/$(basename $(pwd)) /usr/local/bin/$(basename $(pwd))
