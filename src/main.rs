@@ -77,7 +77,7 @@ impl Language {
                             if symbol == symbol_close {
                                 Some(trimed_line.replace(symbol, "").len() + symbol.len())
                             } else {
-                                Some(comment_length)
+                                Some(trimed_line.replace(symbol_close, "").len())
                             }
                         } else {
                             capturing = true;
@@ -196,7 +196,7 @@ fn main() {
     let comments = language.get_comments(&input);
     let parsed_comments = comments_to_json(&comments);
 
-    let output = check_grammar(&parsed_comments).unwrap();
+    let output = check_grammar(&parsed_comments, &language.name).unwrap();
 
     if output.contains("error") {
         println!("Error: {}", output);
@@ -257,16 +257,16 @@ fn comments_to_json(comments: &Vec<Comment>) -> String {
     output
 }
 
-fn check_grammar(json_data: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn std::error::Error>> {
     let openai_token = env::var("OPENAI_API_KEY")?;
 
-    let initial_prompt = r#"I will send you a JSON containing comments from a Python source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
+    let initial_prompt = format!(r#"I will send you a JSON containing comments from a {} source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
 
 - You may add new lines if necessary to maintain clarity, but they must be consecutive and properly numbered.
 - Return the lines in descending order by line number.
 - Do not add periods at the end of lines unless they are necessary for clarity.
 - Do not remove formatters such as '-' or '*'; preserve the original formatting and change only the text when necessary.
-- Do not mix single-line comments with multi-line comments; keep them separate."#;
+- Do not mix single-line comments with multi-line comments; keep them separate."#, language);
 
     let url = "https://api.openai.com/v1/chat/completions";
     let client = Client::new();
