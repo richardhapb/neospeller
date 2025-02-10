@@ -34,6 +34,7 @@ impl Language {
     fn get_comments(&self, input: &str) -> Vec<Comment> {
         let mut comments = Vec::new();
         let symbol_close = &self.ml_comment_symbol_close;
+        let special_chars = vec!['*', '-', '+', '='];
 
         let lines = input.lines();
         let mut capturing = false;
@@ -74,11 +75,24 @@ impl Language {
                     CommentType::Multi => {
                         if comment_length > symbol.len() {
                             capturing = false;
-                            if symbol == symbol_close {
-                                Some(trimed_line.replace(symbol, "").len() + symbol.len())
-                            } else {
-                                Some(trimed_line.replace(symbol_close, "").len())
+                            let mut cut = 0;
+                            for c in special_chars.iter() {
+                                if trimed_line[col + symbol.len()..].replace(*c, "").len() == 0 {
+                                    capturing = true;
+                                    cut = col + symbol.len();
+                                    break;
+                                }
                             }
+
+                            if cut == 0 {
+                                if symbol == symbol_close {
+                                    cut = trimed_line.replace(symbol, "").len() + symbol.len();
+                                } else {
+                                    cut = trimed_line.replace(symbol_close, "").len();
+                                }
+                            }
+
+                            Some(cut)
                         } else {
                             capturing = true;
                             Some(comment_length)
@@ -105,7 +119,7 @@ impl Language {
             if capturing {
                 comments.push(Comment {
                     line: i + 1,
-                    text: line.trim().to_string(),
+                    text: trimed_line.to_string(),
                     comment_type,
                 });
             }
@@ -260,13 +274,17 @@ fn comments_to_json(comments: &Vec<Comment>) -> String {
 fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn std::error::Error>> {
     let openai_token = env::var("OPENAI_API_KEY")?;
 
-    let initial_prompt = format!(r#"I will send you a JSON containing comments from a {} source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
+    let initial_prompt = format!(
+        r#"I will send you a JSON containing comments from a {} source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
 
 - You may add new lines if necessary to maintain clarity, but they must be consecutive and properly numbered.
-- Return the lines in descending order by line number.
 - Do not add periods at the end of lines unless they are necessary for clarity.
 - Do not remove formatters such as '-' or '*'; preserve the original formatting and change only the text when necessary.
-- Do not mix single-line comments with multi-line comments; keep them separate."#, language);
+- Do not change the line numbers for each comment, mantain the original line numbers.
+- Do not replace variable names like line_number to line number
+- Do not mix single-line comments with multi-line comments; keep them separate."#,
+        language
+    );
 
     let url = "https://api.openai.com/v1/chat/completions";
     let client = Client::new();
