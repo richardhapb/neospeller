@@ -2,10 +2,9 @@ pub mod language;
 pub mod grammar;
 pub mod buffer;
 
-use language::{Comment, CommentType, Language};
+use language::Language;
 
 use std::env;
-use std::collections::BTreeMap;
 
 struct SupportedLanguages {
     languages: Vec<Language>,
@@ -86,56 +85,11 @@ fn add_quotes(text: &str) -> String {
     format!("\"{}\"", text.replace("\"", "\\\""))
 }
 
-// Captures comments from a text and returns a JSON object
-pub fn comments_to_json(comments: &Vec<Comment>) -> String {
-    let mut output = String::new();
-    let mut single_comments: BTreeMap<String, String> = Default::default();
-    let mut ml_comments: BTreeMap<String, String> = Default::default();
-
-    output.push_str("{");
-
-    for comment in comments.iter() {
-        match comment.comment_type {
-            CommentType::Single => single_comments.insert(
-                add_quotes(&comment.line.to_string()),
-                add_quotes(&comment.text.clone()),
-            ),
-            CommentType::Multi => ml_comments.insert(
-                add_quotes(&comment.line.to_string()),
-                add_quotes(&comment.text),
-            ),
-        };
-    }
-
-    if single_comments.len() > 0 {
-        output.push_str("\"single_comments\": {");
-        for (lineno, text) in &single_comments {
-            output.push_str(&format!("{}: {},", lineno, text));
-        }
-        output.pop();
-        output.push('}');
-    }
-
-    if ml_comments.len() > 0 {
-        if single_comments.len() > 0 {
-            output.push(',');
-        }
-
-        output.push_str("\"multiline_comments\": {");
-        for (lineno, text) in &ml_comments {
-            output.push_str(&format!("{}: {},", lineno, text));
-        }
-        output.pop();
-        output.push('}');
-    }
-
-    output.push_str("}");
-    output
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use language::{Comment, CommentType};
+    use buffer::Buffer;
 
     #[test]
     fn test_add_quotes() {
@@ -150,21 +104,25 @@ mod tests {
             Comment {
                 line: 1,
                 text: "A class that represents a HttpRequest".to_string(),
-                comment_type: &CommentType::Single,
+                comment_type: CommentType::Single,
             },
             Comment {
                 line: 122,
                 text: "Args:".to_string(),
-                comment_type: &CommentType::Multi,
+                comment_type: CommentType::Multi,
             },
             Comment {
                 line: 124,
                 text: "count -> int: The counter of a loop".to_string(),
-                comment_type: &CommentType::Multi,
+                comment_type: CommentType::Multi,
             },
         ];
 
-        let json = comments_to_json(&comments);
+        let mut buffer = Buffer::new();
+
+        buffer.comments = comments;
+
+        let json = buffer.comments_to_json();
         let expected = r#"{"single_comments": {"1": "A class that represents a HttpRequest"},"multiline_comments": {"122": "Args:","124": "count -> int: The counter of a loop"}}"#;
         assert_eq!(json, expected);
     }

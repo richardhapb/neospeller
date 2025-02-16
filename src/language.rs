@@ -1,26 +1,24 @@
-use crate::buffer::Buffer;
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum CommentType {
     Single,
     Multi,
 }
 
 #[derive(Debug)]
-struct ParseState<'a> {
-    comments: Vec<Comment<'a>>,
-    lines_parsed: usize,
+pub struct ParseState {
+    pub comments: Vec<Comment>,
+    pub lines_parsed: usize,
 }
 
 #[derive(Debug)]
-pub struct Comment<'a> {
+pub struct Comment {
     pub line: usize,
     pub text: String,
-    pub comment_type: &'a CommentType,
+    pub comment_type: CommentType,
 }
 
-impl Comment<'_> {
-    pub fn new(line: usize, text: String, comment_type: &CommentType) -> Comment {
+impl Comment {
+    pub fn new(line: usize, text: String, comment_type: CommentType) -> Comment {
         Comment {
             line,
             text,
@@ -28,12 +26,12 @@ impl Comment<'_> {
         }
     }
 
-    fn parse_comment<'a>(
+    pub fn parse_comment(
         language: &Language,
         input: &str,
         start_line: usize,
-        comment_type: &'a CommentType,
-    ) -> Result<ParseState<'a>, &'static str> {
+        comment_type: CommentType,
+    ) -> Result<ParseState, &'static str> {
         let mut comments = Vec::new();
         let mut lines_parsed = 0;
 
@@ -70,26 +68,26 @@ fn parse_single_line_comment<'a>(
     language: &Language,
     line: &str,
     line_number: usize,
-) -> Option<Comment<'a>> {
+) -> Option<Comment> {
     if let Some(pos) = line.find(&language.comment_symbol) {
         let comment_text = line[pos + language.comment_symbol.len()..].trim();
         if !comment_text.is_empty() {
             return Some(Comment::new(
                 line_number,
                 comment_text.to_string(),
-                &CommentType::Single,
+                CommentType::Single,
             ));
         }
     }
     None
 }
 
-fn parse_multi_line_comment<'a>(
+fn parse_multi_line_comment(
     language: &Language,
     lines: &[&str],
     start_line: usize,
-    comment_type: &'a CommentType,
-) -> Option<ParseState<'a>> {
+    comment_type: CommentType,
+) -> Option<ParseState> {
     let mut comments = Vec::new();
     let mut lines_parsed = 0;
     let mut found_close = false;
@@ -160,57 +158,23 @@ pub struct Language {
 }
 
 impl Language {
-    pub fn get_comment_type(&self, line: &str) -> &CommentType {
+    pub fn get_comment_type(&self, line: &str) -> CommentType {
         // First check for multi-line comment
         if let Some(ml_pos) = line.find(&self.ml_comment_symbol) {
             // Make sure it's not inside a string
             let before = &line[..ml_pos];
             let quotes = before.chars().filter(|&c| c == '"' || c == '\'').count();
             if quotes % 2 == 0 {
-                return &CommentType::Multi;
+                return CommentType::Multi;
             }
         }
-        &CommentType::Single
-    }
-
-    pub fn get_comments(&self, buffer: &Buffer) -> Vec<Comment> {
-        let mut comments = Vec::new();
-        let lines: Vec<&str> = buffer.lines.iter().map(|l| l.as_str()).collect();
-        let mut i = 0;
-
-        while i < lines.len() {
-            let line = lines[i];
-
-            // Skip empty lines
-            if line.trim().is_empty() {
-                i += 1;
-                continue;
-            }
-
-            let comment_type = self.get_comment_type(line);
-
-            // Try to parse comment starting at current line
-            if let Ok(parse_state) = Comment::parse_comment(
-                self,
-                &buffer.lines[i..].join("\n"),
-                i + 1,
-                comment_type,
-            ) {
-                comments.extend(parse_state.comments);
-                i += parse_state.lines_parsed + 1;
-            } else {
-                i += 1;
-            }
-        }
-
-        comments
+        CommentType::Single
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_get_comment_type() {
         let language = Language {
@@ -223,155 +187,7 @@ mod tests {
         let single_line = "let x = 5; // this is a comment";
         let multi_line = "/* this is a\nmulti-line comment */";
 
-        assert_eq!(language.get_comment_type(single_line), &CommentType::Single);
-        assert_eq!(language.get_comment_type(multi_line), &CommentType::Multi);
-    }
-
-    #[test]
-    fn test_get_comments_rust() {
-        let language = Language {
-            name: "rust".to_string(),
-            comment_symbol: "//".to_string(),
-            ml_comment_symbol: "/*".to_string(),
-            ml_comment_symbol_close: "*/".to_string(),
-        };
-
-        let input = r#"
-        // this is a single line comment
-        let x = 5;
-
-        /*
-        this is a
-        multi-line comment
-        */
-
-        /* Another multi-line comment, but in a single line */
-
-        /* Unestruturated multi-line comment
-        */
-
-        /* 
-        Another unestruturated multi-line comment 
-        With multiples lines */
-
-        foo();
-
-        bar = 5;
-        "#;
-
-        let buffer = Buffer::from_string(input.to_string());
-
-        let comments = language.get_comments(&buffer);
-
-        assert_eq!(comments.len(), 7);
-
-        assert_eq!(comments[0].line, 2);
-        assert_eq!(comments[0].text, "this is a single line comment");
-        assert_eq!(comments[0].comment_type, &CommentType::Single);
-
-        assert_eq!(comments[1].line, 6);
-        assert_eq!(comments[1].text, "this is a");
-        assert_eq!(comments[1].comment_type, &CommentType::Multi);
-
-        assert_eq!(comments[2].text, "multi-line comment");
-        assert_eq!(comments[2].comment_type, &CommentType::Multi);
-        assert_eq!(comments[2].line, 7);
-
-        assert_eq!(
-            comments[3].text,
-            "Another multi-line comment, but in a single line"
-        );
-        assert_eq!(comments[3].line, 10);
-        assert_eq!(comments[3].comment_type, &CommentType::Multi);
-
-        assert_eq!(comments[4].text, "Unestruturated multi-line comment");
-        assert_eq!(comments[4].line, 12);
-        assert_eq!(comments[4].comment_type, &CommentType::Multi);
-
-        assert_eq!(
-            comments[5].text,
-            "Another unestruturated multi-line comment"
-        );
-        assert_eq!(comments[5].line, 16);
-        assert_eq!(comments[5].comment_type, &CommentType::Multi);
-
-        assert_eq!(comments[6].text, "With multiples lines");
-        assert_eq!(comments[6].line, 17);
-        assert_eq!(comments[6].comment_type, &CommentType::Multi);
-    }
-
-    #[test]
-    fn test_get_comments_python() {
-        let language = Language {
-            name: "python".to_string(),
-            comment_symbol: "#".to_string(),
-            ml_comment_symbol: "\"\"\"".to_string(),
-            ml_comment_symbol_close: "\"\"\"".to_string(),
-        };
-
-        let input = r#"
-        # this is a single line comment
-        x = 5
-
-        """
-        this is a
-        multi-line comment
-        """
-
-        """ Another multi-line comment, but in a single line """
-
-        """ Unestruturated multi-line comment
-        """
-
-        """ 
-        Another unestruturated multi-line comment 
-        With multiples lines """
-
-        foo()
-
-        bar = 5
-        "#;
-
-        let buffer = Buffer::from_string(input.to_string());
-
-        let comments = language.get_comments(&buffer);
-
-        println!("{:?}", comments);
-
-        assert_eq!(comments.len(), 7);
-
-        assert_eq!(comments[0].line, 2);
-        assert_eq!(comments[0].text, "this is a single line comment");
-        assert_eq!(comments[0].comment_type, &CommentType::Single);
-
-        assert_eq!(comments[1].line, 6);
-        assert_eq!(comments[1].text, "this is a");
-        assert_eq!(comments[1].comment_type, &CommentType::Multi);
-
-        assert_eq!(comments[2].text, "multi-line comment");
-        assert_eq!(comments[2].comment_type, &CommentType::Multi);
-        assert_eq!(comments[2].line, 7);
-
-        assert_eq!(
-            comments[3].text,
-            "Another multi-line comment, but in a single line"
-        );
-        assert_eq!(comments[3].line, 10);
-        assert_eq!(comments[3].comment_type, &CommentType::Multi);
-
-        assert_eq!(comments[4].text, "Unestruturated multi-line comment");
-        assert_eq!(comments[4].line, 12);
-        assert_eq!(comments[4].comment_type, &CommentType::Multi);
-
-        assert_eq!(
-            comments[5].text,
-            "Another unestruturated multi-line comment"
-        );
-        assert_eq!(comments[5].line, 16);
-        assert_eq!(comments[5].comment_type, &CommentType::Multi);
-
-        assert_eq!(comments[6].text, "With multiples lines");
-        assert_eq!(comments[6].line, 17);
-        assert_eq!(comments[6].comment_type, &CommentType::Multi);
+        assert_eq!(language.get_comment_type(single_line), CommentType::Single);
+        assert_eq!(language.get_comment_type(multi_line), CommentType::Multi);
     }
 }

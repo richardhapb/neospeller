@@ -17,10 +17,10 @@ fn main() {
         std::process::exit(1);
     });
 
-    let buffer = Buffer::from_string(input);
+    let mut buffer = Buffer::from_string(input);
 
-    let comments = language.get_comments(&buffer);
-    let parsed_comments = neospeller::comments_to_json(&comments);
+    buffer.get_comments(&language);
+    let parsed_comments = buffer.comments_to_json();
 
     let output = grammar::check_grammar(&parsed_comments, &language.name).unwrap_or_else(|err| {
         eprintln!("{}", err);
