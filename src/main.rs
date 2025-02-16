@@ -32,5 +32,13 @@ fn main() {
         return;
     }
 
+    buffer.json_to_comments(&output, &language).unwrap_or_else(|err| {
+        eprintln!("{}", err);
+        std::process::exit(1);
+    });
+
+    let output = buffer.to_string();
+
+
     print!("{}", output);
 }

@@ -1,3 +1,5 @@
+
+// TODO: Implement Display for use in parsing
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum CommentType {
     Single,
