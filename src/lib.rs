@@ -1,10 +1,11 @@
 pub mod language;
 pub mod grammar;
+pub mod buffer;
 
 use language::{Comment, CommentType, Language};
 
 use std::env;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 struct SupportedLanguages {
     languages: Vec<Language>,
@@ -88,8 +89,8 @@ fn add_quotes(text: &str) -> String {
 // Captures comments from a text and returns a JSON object
 pub fn comments_to_json(comments: &Vec<Comment>) -> String {
     let mut output = String::new();
-    let mut single_comments: HashMap<String, String> = Default::default();
-    let mut ml_comments: HashMap<String, String> = Default::default();
+    let mut single_comments: BTreeMap<String, String> = Default::default();
+    let mut ml_comments: BTreeMap<String, String> = Default::default();
 
     output.push_str("{");
 
@@ -130,5 +131,42 @@ pub fn comments_to_json(comments: &Vec<Comment>) -> String {
 
     output.push_str("}");
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_quotes() {
+        let text = "124";
+        let quoted_text = add_quotes(text);
+        assert_eq!(quoted_text, "\"124\"");
+    }
+
+    #[test]
+    fn test_comments_to_json() {
+        let comments = vec![
+            Comment {
+                line: 1,
+                text: "A class that represents a HttpRequest".to_string(),
+                comment_type: &CommentType::Single,
+            },
+            Comment {
+                line: 122,
+                text: "Args:".to_string(),
+                comment_type: &CommentType::Multi,
+            },
+            Comment {
+                line: 124,
+                text: "count -> int: The counter of a loop".to_string(),
+                comment_type: &CommentType::Multi,
+            },
+        ];
+
+        let json = comments_to_json(&comments);
+        let expected = r#"{"single_comments": {"1": "A class that represents a HttpRequest"},"multiline_comments": {"122": "Args:","124": "count -> int: The counter of a loop"}}"#;
+        assert_eq!(json, expected);
+    }
 }
 

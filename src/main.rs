@@ -2,6 +2,7 @@ use std::io::{self, Read};
 
 use neospeller;
 use neospeller::grammar;
+use neospeller::buffer::Buffer;
 
 fn main() {
 
@@ -16,7 +17,9 @@ fn main() {
         std::process::exit(1);
     });
 
-    let comments = language.get_comments(&input);
+    let buffer = Buffer::from_string(input);
+
+    let comments = language.get_comments(&buffer);
     let parsed_comments = neospeller::comments_to_json(&comments);
 
     let output = grammar::check_grammar(&parsed_comments, &language.name).unwrap_or_else(|err| {
