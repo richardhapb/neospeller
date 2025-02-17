@@ -174,6 +174,49 @@ impl Language {
     }
 }
 
+pub struct SupportedLanguages {
+    pub languages: Vec<Language>,
+}
+
+pub fn init_supported_languages() -> SupportedLanguages {
+    let mut languages = Vec::new();
+
+    let python = Language {
+        name: "python".to_string(),
+        comment_symbol: "#".to_string(),
+        ml_comment_symbol: "\"\"\"".to_string(),
+        ml_comment_symbol_close: "\"\"\"".to_string(),
+    };
+
+    let javascript = Language {
+        name: "javascript".to_string(),
+        comment_symbol: "//".to_string(),
+        ml_comment_symbol: "/*".to_string(),
+        ml_comment_symbol_close: "*/".to_string(),
+    };
+
+    let rust = Language {
+        name: "rust".to_string(),
+        comment_symbol: "//".to_string(),
+        ml_comment_symbol: "/*".to_string(),
+        ml_comment_symbol_close: "*/".to_string(),
+    };
+
+    let css = Language {
+        name: "css".to_string(),
+        comment_symbol: "//".to_string(),
+        ml_comment_symbol: "/*".to_string(),
+        ml_comment_symbol_close: "*/".to_string(),
+    };
+
+    languages.push(python);
+    languages.push(javascript);
+    languages.push(rust);
+    languages.push(css);
+
+    SupportedLanguages { languages }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

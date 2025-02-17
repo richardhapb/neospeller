@@ -18,7 +18,6 @@ fn main() {
     });
 
     let mut buffer = Buffer::from_string(input);
-
     buffer.get_comments(&language);
     let parsed_comments = buffer.comments_to_json();
 
@@ -28,7 +27,7 @@ fn main() {
     });
 
     if output.contains("error") {
-        println!("Error: {}", output);
+        eprintln!("Error: {}", output);
         return;
     }
 

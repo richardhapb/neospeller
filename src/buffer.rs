@@ -1,6 +1,5 @@
 use super::add_quotes;
 use crate::language::{Comment, CommentType, Language};
-use std::collections::BTreeMap;
 
 pub struct Buffer {
     pub lines: Vec<String>,
@@ -34,43 +33,42 @@ impl Buffer {
     // Captures comments from a text and returns a JSON object
     pub fn comments_to_json(&self) -> String {
         let mut output = String::new();
-        let mut single_comments: BTreeMap<String, String> = Default::default();
-        let mut ml_comments: BTreeMap<String, String> = Default::default();
-
         output.push_str("{");
 
-        for comment in self.comments.iter() {
-            match comment.comment_type {
-                CommentType::Single => single_comments.insert(
-                    add_quotes(&comment.line.to_string()),
-                    add_quotes(&comment.text.clone()),
-                ),
-                CommentType::Multi => ml_comments.insert(
-                    add_quotes(&comment.line.to_string()),
-                    add_quotes(&comment.text),
-                ),
-            };
-        }
+        // Separate comments by type while preserving order
+        let (single_comments, ml_comments): (Vec<_>, Vec<_>) = self
+            .comments
+            .iter()
+            .partition(|comment| matches!(comment.comment_type, CommentType::Single));
 
-        if single_comments.len() > 0 {
+        // Handle single-line comments
+        if !single_comments.is_empty() {
             output.push_str("\"single_comments\": {");
-            for (lineno, text) in &single_comments {
-                output.push_str(&format!("{}: {},", lineno, text));
+            for comment in &single_comments {
+                output.push_str(&format!(
+                    "{}: {},",
+                    add_quotes(&comment.line.to_string()),
+                    add_quotes(&comment.text.clone())
+                ));
             }
-            output.pop();
+            output.pop(); // Remove trailing comma
             output.push('}');
         }
 
-        if ml_comments.len() > 0 {
-            if single_comments.len() > 0 {
+        // Handle multi-line comments
+        if !ml_comments.is_empty() {
+            if !single_comments.is_empty() {
                 output.push(',');
             }
-
             output.push_str("\"multiline_comments\": {");
-            for (lineno, text) in &ml_comments {
-                output.push_str(&format!("{}: {},", lineno, text));
+            for comment in &ml_comments {
+                output.push_str(&format!(
+                    "{}: {},",
+                    add_quotes(&comment.line.to_string()),
+                    add_quotes(&comment.text)
+                ));
             }
-            output.pop();
+            output.pop(); // Remove trailing comma
             output.push('}');
         }
 
@@ -99,9 +97,11 @@ impl Buffer {
                 Comment::parse_comment(&language, &self.lines[i..].join("\n"), i + 1, comment_type)
             {
                 comments.extend(parse_state.comments);
-                i += parse_state.lines_parsed + 1;
-            } else {
-                i += 1;
+                if parse_state.lines_parsed > 0 {
+                    i += parse_state.lines_parsed;
+                } else {
+                    i += 1;
+                }
             }
         }
 
@@ -163,8 +163,10 @@ impl Buffer {
     ) -> Result<&Vec<Comment>, &'static str> {
         let mut comments = vec![];
 
-        comments.extend(parse_json_element("single_comments", json_string)?);
-        comments.extend(parse_json_element("multiline_comments", json_string)?);
+        comments.extend(serialize_json_element("single_comments", json_string)?);
+        comments.extend(serialize_json_element("multiline_comments", json_string)?);
+
+        comments = sort_comments_by_line_number(comments);
 
         self.replace_comments(&comments, &language)?;
 
@@ -174,27 +176,90 @@ impl Buffer {
     }
 }
 
-fn parse_json_element(comment_key: &str, json_string: &str) -> Result<Vec<Comment>, &'static str> {
+fn serialize_json_element(
+    comment_key: &str,
+    json_string: &str,
+) -> Result<Vec<Comment>, &'static str> {
+    // TODO: Refactor this function to be more efficient and use a JSON parser
     let mut comments = vec![];
 
-    if let Some(single_comments_col) = json_string.find(comment_key) {
-        if let Some(open) = json_string[single_comments_col + 1..].find('{') {
-            let open = single_comments_col + open + 2;
-            if let Some(close) = json_string[open..].find('}') {
-                let close = open + close;
-                let items = json_string[open..close].split(',');
-                for item in items {
-                    let (key, value) = item.split_once(':').ok_or("Invalid JSON format")?;
+    let comment_type = match comment_key {
+        "single_comments" => CommentType::Single,
+        "multiline_comments" => CommentType::Multi,
+        _ => return Err("Invalid comment key"),
+    };
 
-                    let key = key.replace("\"", "");
-                    let value = value.replace("\"", "");
+    if let Some(comments_col) = json_string.find(comment_key) {
+        if let Some(open) = json_string[comments_col + 1..].find('{') {
+            let open = comments_col + open + 2;
+            let mut in_key = true;
+            let mut in_value = false;
+            let mut in_quotes = false;
+            let mut in_scape = false;
 
-                    let comment_type = match comment_key {
-                        "single_comments" => CommentType::Single,
-                        "multiline_comments" => CommentType::Multi,
-                        _ => return Err("Invalid comment key"),
-                    };
+            let mut capturing = false;
+            let mut inserting = false;
+            let mut end = false;
+            let mut bracket_count = 1;
 
+            let mut key = String::new();
+            let mut value = String::new();
+
+            for c in json_string[open..].chars() {
+                if !in_scape {
+                    match c {
+                        '{' => bracket_count += 1,
+                        '"' => in_quotes = !in_quotes,
+                        ':' => {
+                            if !in_quotes {
+                                in_key = false;
+                                in_value = true;
+                            } else {
+                                capturing = true;
+                            }
+                        }
+                        ',' => {
+                            if !in_quotes {
+                                in_key = true;
+                                in_value = false;
+                                inserting = true;
+                            }
+                        }
+                        '\\' => in_scape = true,
+                        '}' => {
+                            if !in_quotes {
+                                if bracket_count == 1 {
+                                    inserting = true;
+                                    end = true;
+                                } else {
+                                    bracket_count -= 1;
+                                }
+                            }
+                        },
+                        ' ' => if in_quotes {
+                            capturing = true;
+                        },
+                        _ => capturing = true,
+                    }
+                } else {
+                    capturing = true;
+                }
+
+                if !capturing && !inserting {
+                    continue;
+                }
+
+                if capturing {
+                    if in_key && !in_quotes {
+                        return Err("Invalid JSON format");
+                    } else if in_key && in_quotes {
+                        key.push(c);
+                    } else if in_value && in_quotes {
+                        value.push(c);
+                    }
+                }
+
+                if inserting {
                     comments.push(Comment {
                         line: key
                             .trim()
@@ -202,12 +267,38 @@ fn parse_json_element(comment_key: &str, json_string: &str) -> Result<Vec<Commen
                             .map_err(|_| "Invalid number in key")?,
                         text: value.trim().to_string(),
                         comment_type,
-                    })
+                    });
+                    if end {
+                        break;
+                    }
+
+                    key.clear();
+                    value.clear();
                 }
+
+                inserting = false;
+                capturing = false;
+                in_scape = false;
             }
-        };
+        }
     };
     Ok(comments)
+}
+
+/// Orders comments by line number using an efficient sort
+///
+/// # Arguments
+/// * `comments` - Vector of Comment structures to be sorted
+///
+/// # Returns
+/// * Sorted vector of comments by line number
+///
+/// # Performance
+/// * Time complexity: O(n log n)
+/// * Space complexity: O(1) as it sorts in place
+fn sort_comments_by_line_number(mut comments: Vec<Comment>) -> Vec<Comment> {
+    comments.sort_by_key(|comment| comment.line);
+    comments
 }
 
 fn replace_single_comment(
@@ -308,6 +399,18 @@ mod tests {
         foo()
 
         bar = 5
+
+        string = "hello"
+        another = 'hello'
+
+        # Print debug information to compare with the visual content in the browser and verify the order.
+        # Profiles online should be in the positions: [7, 57] and [3, 15, 17] according to the get_profiles_display_group_settings function.
+        # If you change the initial online IDs, another filter may capture them first. Check if this occurs.
+        # print(f"profile_list[{position}]: {profiles_list[position]}")
+
+        CONSTANT = 5
+        """ last """
+        """ comment """
         "#;
 
     #[test]
@@ -371,7 +474,9 @@ mod tests {
         let mut buffer = Buffer::from_string(PYTHON_FIXTURE.to_string());
         let comments = buffer.get_comments(&language);
 
-        assert_eq!(comments.len(), 7);
+        println!("{:?}", comments);
+
+        assert_eq!(comments.len(), 13);
 
         assert_eq!(comments[0].line, 2);
         assert_eq!(comments[0].text, "this is a single line comment");
@@ -406,6 +511,16 @@ mod tests {
         assert_eq!(comments[6].text, "With multiples lines");
         assert_eq!(comments[6].line, 17);
         assert_eq!(comments[6].comment_type, CommentType::Multi);
+
+        assert_eq!(comments[7].text, "Print debug information to compare with the visual content in the browser and verify the order.");
+        assert_eq!(comments[8].text, "Profiles online should be in the positions: [7, 57] and [3, 15, 17] according to the get_profiles_display_group_settings function.");
+        assert_eq!(comments[9].text, "If you change the initial online IDs, another filter may capture them first. Check if this occurs.");
+        assert_eq!(
+            comments[10].text,
+            "print(f\"profile_list[{position}]: {profiles_list[position]}\")"
+        );
+        assert_eq!(comments[11].text, "last");
+        assert_eq!(comments[12].text, "comment");
     }
 
     #[test]
@@ -454,8 +569,8 @@ mod tests {
             _language: &Language,
         ) -> Result<&Vec<Comment>, &'static str> {
             let mut comments = vec![];
-            comments.extend(parse_json_element("single_comments", json_string)?);
-            comments.extend(parse_json_element("multiline_comments", json_string)?);
+            comments.extend(serialize_json_element("single_comments", json_string)?);
+            comments.extend(serialize_json_element("multiline_comments", json_string)?);
             self.comments = comments;
             Ok(&self.comments)
         }
@@ -470,7 +585,7 @@ mod tests {
             ml_comment_symbol_close: "\"\"\"".to_string(),
         };
 
-        let mut buffer = BufferMock {comments: vec![]};
+        let mut buffer = BufferMock { comments: vec![] };
         let json_string = r#"{"single_comments": {"1": "A class that represents a HttpRequest"},"multiline_comments": {"122": "Args:","124": "count -> int: The counter of a loop"}}"#;
         let comments = buffer.json_to_comments(json_string, &language).unwrap();
 
@@ -485,5 +600,43 @@ mod tests {
         assert_eq!(comments[2].line, 124);
         assert_eq!(comments[2].text, "count -> int: The counter of a loop");
         assert_eq!(comments[2].comment_type, CommentType::Multi);
+
+        let mut buffer = BufferMock { comments: vec![] };
+        let json_string = r#"{  "single_comments": {    "42": "Another comment with spelling mistakes?"  },  "multiline_comments": {    "4": "Docstring of a function",    "6": "Args:",    "7": "dictarg (dict): A dictionary argument",    "19": "Multiline comment that is not a docstring",    "26": "Alice's Adventures in Wonderland by Lewis Carroll",    "27": "A Project Gutenberg eBook"  }}"#;
+        let comments = buffer.json_to_comments(json_string, &language).unwrap();
+
+        assert_eq!(comments[0].line, 42);
+        assert_eq!(comments[0].text, "Another comment with spelling mistakes?");
+        assert_eq!(comments[0].comment_type, CommentType::Single);
+
+        assert_eq!(comments[1].line, 4);
+        assert_eq!(comments[1].text, "Docstring of a function");
+        assert_eq!(comments[1].comment_type, CommentType::Multi);
+
+        assert_eq!(comments[2].line, 6);
+        assert_eq!(comments[2].text, "Args:");
+        assert_eq!(comments[2].comment_type, CommentType::Multi);
+
+        assert_eq!(comments[3].line, 7);
+        assert_eq!(comments[3].text, "dictarg (dict): A dictionary argument");
+        assert_eq!(comments[3].comment_type, CommentType::Multi);
+
+        assert_eq!(comments[4].line, 19);
+        assert_eq!(
+            comments[4].text,
+            "Multiline comment that is not a docstring"
+        );
+        assert_eq!(comments[4].comment_type, CommentType::Multi);
+
+        assert_eq!(comments[5].line, 26);
+        assert_eq!(
+            comments[5].text,
+            "Alice's Adventures in Wonderland by Lewis Carroll"
+        );
+        assert_eq!(comments[5].comment_type, CommentType::Multi);
+
+        assert_eq!(comments[6].line, 27);
+        assert_eq!(comments[6].text, "A Project Gutenberg eBook");
+        assert_eq!(comments[6].comment_type, CommentType::Multi);
     }
 }

@@ -1,6 +1,28 @@
 use reqwest::blocking::Client;
-use serde_json::json;
+
 use std::env;
+use serde::Deserialize;
+use serde_json::json;
+
+#[derive(Debug, Deserialize)]
+struct OpenAIResponse {
+    choices: Vec<Choice>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct Choice {
+    message: Message,
+    index: i32,
+    finish_reason: Option<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct Message {
+    role: String,
+    content: String,
+}
 
 pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn std::error::Error>> {
     let openai_token = env::var("OPENAI_API_KEY")?;
@@ -43,6 +65,12 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
         .send()?;
 
     let response_text = res.text()?;
-
-    Ok(response_text)
+    let response: OpenAIResponse = serde_json::from_str(&response_text)?;
+    
+    // Simply return the content string from the first choice
+    if let Some(choice) = response.choices.first() {
+        Ok(choice.message.content.clone().replace("\n", ""))
+    } else {
+        Err("No choices found in the response".into())
+    }
 }

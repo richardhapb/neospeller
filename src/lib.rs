@@ -2,58 +2,15 @@ pub mod language;
 pub mod grammar;
 pub mod buffer;
 
-use language::Language;
+use language::{Language, init_supported_languages};
 
 use std::env;
-
-struct SupportedLanguages {
-    languages: Vec<Language>,
-}
-
-fn init_supported_languages() -> SupportedLanguages {
-    let mut languages = Vec::new();
-
-    let python = Language {
-        name: "python".to_string(),
-        comment_symbol: "#".to_string(),
-        ml_comment_symbol: "\"\"\"".to_string(),
-        ml_comment_symbol_close: "\"\"\"".to_string(),
-    };
-
-    let javascript = Language {
-        name: "javascript".to_string(),
-        comment_symbol: "//".to_string(),
-        ml_comment_symbol: "/*".to_string(),
-        ml_comment_symbol_close: "*/".to_string(),
-    };
-
-    let rust = Language {
-        name: "rust".to_string(),
-        comment_symbol: "//".to_string(),
-        ml_comment_symbol: "/*".to_string(),
-        ml_comment_symbol_close: "*/".to_string(),
-    };
-
-    let css = Language {
-        name: "css".to_string(),
-        comment_symbol: "//".to_string(),
-        ml_comment_symbol: "/*".to_string(),
-        ml_comment_symbol_close: "*/".to_string(),
-    };
-
-    languages.push(python);
-    languages.push(javascript);
-    languages.push(rust);
-    languages.push(css);
-
-    SupportedLanguages { languages }
-}
 
 pub fn handle_args() -> Result<Language, &'static str> {
     let mut args = env::args();
 
     if args.len() < 2 {
-        println!("The --lang attribute is required. (e.g. --lang python)");
+        eprintln!("The --lang attribute is required. (e.g. --lang python)");
         return Err("Language not found");
     }
 
@@ -82,7 +39,13 @@ pub fn handle_args() -> Result<Language, &'static str> {
 }
 
 fn add_quotes(text: &str) -> String {
-    format!("\"{}\"", text.replace("\"", "\\\""))
+    let special_chars = vec!["\"", "*"];
+    let mut final_text = text.to_string();
+
+    for char in special_chars {
+        final_text = final_text.replace(char, &format!("\\{}", char));
+    }
+    format!("\"{}\"", final_text)
 }
 
 #[cfg(test)]
