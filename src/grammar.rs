@@ -30,7 +30,6 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
     let initial_prompt = format!(
         r#"I will send you a JSON containing comments from a {} source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
 
-- You may add new lines if necessary to maintain clarity, but they must be consecutive and properly numbered.
 - Do not add periods at the end of lines unless they are necessary for clarity.
 - Do not remove formatters such as '-' or '*'; preserve the original formatting and change only the text when necessary.
 - Do not change the line numbers for each comment, mantain the original line numbers.
@@ -67,7 +66,7 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
     let response_text = res.text()?;
     let response: OpenAIResponse = serde_json::from_str(&response_text)?;
     
-    // Simply return the content string from the first choice
+    // Return the content string from the first choice
     if let Some(choice) = response.choices.first() {
         Ok(choice.message.content.clone().replace("\n", ""))
     } else {

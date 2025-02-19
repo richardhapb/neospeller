@@ -92,7 +92,7 @@ impl Buffer {
 
             let comment_type = language.get_comment_type(line);
 
-            // Try to parse comment starting at current line
+            // Attempt to parse the comment starting at the current line
             if let Ok(parse_state) =
                 Comment::parse_comment(&language, &self.lines[i..].join("\n"), i + 1, comment_type)
             {
@@ -114,17 +114,11 @@ impl Buffer {
         new_comments: &Vec<Comment>,
         language: &Language,
     ) -> Result<(), &'static str> {
-        let mut to_add: Vec<&Comment> = vec![]; // Lines added by LLM
         for (i, comment) in new_comments.iter().enumerate() {
             let line = self
                 .lines
                 .get_mut(comment.line - 1)
                 .ok_or("Line not found")?;
-
-            // In case that LLM added a line
-            if comment.line > self.comments[i].line {
-                to_add.push(&comment);
-            }
 
             let new_line = match comment.comment_type {
                 CommentType::Single => {
@@ -136,21 +130,6 @@ impl Buffer {
             };
 
             *line = new_line?;
-        }
-
-        // Add the additional lines if LLM adds that
-        for &comment in to_add.iter().rev() {
-            // TODO: Verify if it is last line of the multiline comment and add symbol_close if it is needed
-            let indent = if comment.line > 1 {
-                self.lines[comment.line - 1].len() - self.lines[comment.line - 1].len()
-            } else {
-                0
-            };
-
-            let indent_str = " ".repeat(indent);
-
-            let new_line = format!("{}{}", indent_str, &comment.text);
-            self.lines.insert(comment.line, new_line);
         }
 
         Ok(())
@@ -180,7 +159,7 @@ fn serialize_json_element(
     comment_key: &str,
     json_string: &str,
 ) -> Result<Vec<Comment>, &'static str> {
-    // TODO: Refactor this function to be more efficient and use a JSON parser
+    // TODO: Refactor this function to improve efficiency and assess the use of the JSON parser
     let mut comments = vec![];
 
     let comment_type = match comment_key {
@@ -524,7 +503,7 @@ mod tests {
     }
 
     #[test]
-    fn text_replace_comments() {
+    fn test_replace_comments() {
         let language = Language {
             name: "python".to_string(),
             comment_symbol: "#".to_string(),
@@ -577,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn text_json_to_comments() {
+    fn test_json_to_comments() {
         let language = Language {
             name: "python".to_string(),
             comment_symbol: "#".to_string(),
