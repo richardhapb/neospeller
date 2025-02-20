@@ -1,6 +1,11 @@
 <!-- PROJECT LOGO -->
 <div align="center">
 <h3 align="center">NeoSpeller</h3>
+<br />
+  
+  ![ezgif-3d81514ffe89fb](https://github.com/user-attachments/assets/89765695-779f-4e70-b0d7-3689a78e878b)
+
+<br />
 
   <p align="center">
     An awesome project to help you spell and grammar better! Pass your code with comments through stdin and receive a corrected version through stdout.
