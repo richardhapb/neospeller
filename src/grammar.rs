@@ -4,6 +4,8 @@ use std::env;
 use serde::Deserialize;
 use serde_json::json;
 
+/// OpenAI response format
+
 #[derive(Debug, Deserialize)]
 struct OpenAIResponse {
     choices: Vec<Choice>,

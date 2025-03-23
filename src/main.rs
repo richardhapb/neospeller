@@ -3,6 +3,7 @@ use std::io::{self, Read};
 use neospeller;
 use neospeller::grammar;
 use neospeller::buffer::Buffer;
+use crate::neospeller::language::CommentCollection;
 
 fn main() {
 
@@ -17,21 +18,21 @@ fn main() {
         std::process::exit(1);
     });
 
-    let mut buffer = Buffer::from_string(input);
-    buffer.get_comments(&language);
-    let parsed_comments = buffer.comments_to_json();
+    let language_name = language.name.clone();
 
-    let output = grammar::check_grammar(&parsed_comments, &language.name).unwrap_or_else(|err| {
+    let mut buffer = Buffer::from_string(input, language);
+    buffer.get_comments();
+    let comments_collection = CommentCollection::from_comments(buffer.comments);
+    let parsed_comments = serde_json::to_string(&comments_collection).unwrap();
+
+    let output = grammar::check_grammar(&parsed_comments, &language_name).unwrap_or_else(|err| {
         eprintln!("{}", err);
         std::process::exit(1);
     });
 
-    if output.contains("error") {
-        eprintln!("Error: {}", output);
-        return;
-    }
+    buffer.comments = comments_collection.to_comments();
 
-    buffer.json_to_comments(&output, &language).unwrap_or_else(|err| {
+    buffer.json_to_comments(&output).unwrap_or_else(|err| {
         eprintln!("{}", err);
         std::process::exit(1);
     });
