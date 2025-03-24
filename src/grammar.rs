@@ -40,11 +40,11 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
         language
     );
 
-    let url = "https://api.openai.com/v1/chat/completions";
+    let url = env::var("OPENAI_API_BASE_URL").unwrap_or_else(|_| "https://api.openai.com".to_string());
     let client = Client::new();
 
     let res = client
-        .post(url)
+        .post(format!("{}/v1/chat/completions", url))
         .header("Authorization", format!("Bearer {}", openai_token))
         .header("Content-Type", "application/json")
         .json(&json!({

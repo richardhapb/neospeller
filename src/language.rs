@@ -115,27 +115,26 @@ impl Comment {
     /// * str if an error occurred
     pub fn parse_comment(
         language: &Language,
-        text: &str,
+        lines: &[String],
         start_line: usize,
         comment_type: CommentType,
     ) -> Result<ParseState, &'static str> {
         let mut comments = Vec::new();
         let mut lines_parsed = 0;
 
-        let lines: Vec<&str> = text.lines().collect();
         if lines.is_empty() {
             return Err("Empty input");
         }
 
         match comment_type {
             CommentType::Single => {
-                if let Some(comment) = parse_single_line_comment(language, lines[0], start_line) {
+                if let Some(comment) = parse_single_line_comment(language, &lines[0], start_line) {
                     comments.push(comment);
                     lines_parsed = 1;
                 }
             }
             CommentType::Multi => {
-                if let Some(parse_state) = parse_multi_line_comment(language, &lines, start_line) {
+                if let Some(parse_state) = parse_multi_line_comment(language, lines, start_line) {
                     comments.extend(parse_state.comments);
                     lines_parsed = parse_state.lines_parsed;
                 }
@@ -181,13 +180,12 @@ fn parse_single_line_comment(language: &Language, line: &str, line_number: usize
 ///
 /// # Returns
 /// * [`ParseState`] instance with the comments and lines parsed
-fn parse_multi_line_comment(language: &Language, lines: &[&str], start_line: usize) -> Option<ParseState> {
+fn parse_multi_line_comment(language: &Language, lines: &[String], start_line: usize) -> Option<ParseState> {
     let mut comments = Vec::new();
     let mut lines_parsed = 0;
-    let mut found_close = false;
     let comment_type = CommentType::Multi;
 
-    let first_line = lines[0];
+    let first_line = &lines[0];
     if let Some(start_pos) = first_line.find(&language.ml_comment_symbol) {
         let mut text = first_line[start_pos + language.ml_comment_symbol.len()..].trim();
 
@@ -212,44 +210,29 @@ fn parse_multi_line_comment(language: &Language, lines: &[&str], start_line: usi
             // """Comment in multi-line
             // using symbol in same line"""
             comments.push(Comment::new(start_line, text.to_string(), comment_type));
+            lines_parsed += 1;
         }
 
         lines_parsed += 1;
 
-        for (i, &line) in lines[1..].iter().enumerate() {
+        for (i, line) in lines[1..].iter().enumerate() {
             lines_parsed += 1;
-            let trimmed = line.trim();
+            let text = line.trim().to_string();
 
-            // If it is the last line of the comment
-            if let Some(end_pos) = trimmed.find(&language.ml_comment_symbol_close) {
-                let comment_text = trimmed[..end_pos].trim();
-                if !comment_text.is_empty() {
-                    comments.push(Comment::new(
-                        start_line + i + 1,
-                        comment_text.to_string(),
-                        comment_type,
-                    ));
-                }
-                found_close = true;
+            // Last line
+            if let Some(end_pos) = text.find(&language.ml_comment_symbol_close) {
+                let text = text[..end_pos].trim().to_string();
+                comments.push(Comment::new(start_line + i + 1, text, comment_type));
                 break;
             }
 
-            // Still have not found the last line of the comment
-            if !trimmed.is_empty() {
-                comments.push(Comment::new(
-                    start_line + i + 1,
-                    trimmed.to_string(),
-                    comment_type,
-                ));
-            }
+            comments.push(Comment::new(start_line + i + 1, text, comment_type));
         }
 
-        if found_close {
-            return Some(ParseState {
-                comments,
-                lines_parsed,
-            });
-        }
+        return Some(ParseState {
+            comments,
+            lines_parsed,
+        });
     }
     // If the opening or closing symbol is not found returns None
     None

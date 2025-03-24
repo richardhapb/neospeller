@@ -37,11 +37,10 @@ impl Buffer {
     /// Get comments from text of the buffer
     pub fn get_comments(&mut self) -> &Vec<Comment> {
         let mut comments = Vec::new();
-        let lines: Vec<&str> = self.lines.iter().map(|l| l.as_str()).collect();
         let mut i = 0;
 
-        while i < lines.len() {
-            let line = lines[i];
+        while i < self.lines.len() {
+            let line = &self.lines[i];
 
             // Skip empty lines
             if line.trim().is_empty() {
@@ -53,18 +52,16 @@ impl Buffer {
 
             // Attempt to parse the comment starting at the current line
             if let Ok(parse_state) =
-                Comment::parse_comment(&self.language, &self.lines[i..].join("\n"), i + 1, comment_type)
+                Comment::parse_comment(&self.language, &self.lines[i..], i + 1, comment_type)
             {
-                comments.extend(parse_state.comments);
                 if parse_state.lines_parsed > 0 {
+                    comments.extend(parse_state.comments);
                     i += parse_state.lines_parsed;
-                } else {
-                    i += 1;
+                    continue;
                 }
             }
+            i += 1;
         }
-
-        comments = sort_comments_by_line_number(comments);
 
         self.comments = comments;
         &self.comments
@@ -128,7 +125,7 @@ impl Display for Buffer {
 /// # Performance
 /// * Time complexity: O(n log n)
 /// * Space complexity: O(1) as it sorts in place
-fn sort_comments_by_line_number(mut comments: Vec<Comment>) -> Vec<Comment> {
+pub fn sort_comments_by_line_number(mut comments: Vec<Comment>) -> Vec<Comment> {
     comments.sort_by_key(|comment| comment.line);
     comments
 }
@@ -185,9 +182,7 @@ fn replace_multi_comment(
 
         result.push_str(new_comment);
 
-        if line[sym_index..]
-            .contains(&language.ml_comment_symbol_close)
-        {
+        if line[sym_index..].contains(&language.ml_comment_symbol_close) {
             if sym_index > 0 && line.as_bytes()[sym_index - 1] == b' ' {
                 result.push(' ');
             }
@@ -205,6 +200,7 @@ fn replace_multi_comment(
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
     const RUST_FIXTURE: &str = r#"
         // this is a single line comment
         let x = 5;
@@ -259,6 +255,8 @@ mod tests {
         # Profiles online should be in the positions: [7, 57] and [3, 15, 17] according to the get_profiles_display_group_settings function.
         # If you change the initial online IDs, another filter may capture them first. Check if this occurs.
         # print(f"profile_list[{position}]: {profiles_list[position]}")
+
+
 
         CONSTANT = 5
         """ last """
@@ -372,8 +370,8 @@ mod tests {
             comments[10].text,
             "print(f\"profile_list[{position}]: {profiles_list[position]}\")"
         );
-        assert_eq!(comments[11].text, "last");
-        assert_eq!(comments[12].text, "comment");
+        assert_eq!(comments[13].text, "last");
+        assert_eq!(comments[15].text, "comment");
     }
 
     #[test]
