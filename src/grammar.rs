@@ -1,8 +1,8 @@
 use reqwest::blocking::Client;
 
-use std::env;
 use serde::Deserialize;
 use serde_json::json;
+use std::env;
 
 /// OpenAI response format
 
@@ -67,7 +67,7 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
 
     let response_text = res.text()?;
     let response: OpenAIResponse = serde_json::from_str(&response_text)?;
-    
+
     // Return the content string from the first choice
     if let Some(choice) = response.choices.first() {
         Ok(choice.message.content.clone().replace("\n", ""))

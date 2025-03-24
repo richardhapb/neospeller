@@ -1,8 +1,8 @@
-pub mod language;
-pub mod grammar;
 pub mod buffer;
+pub mod grammar;
+pub mod language;
 
-use language::{Language, init_supported_languages};
+use language::{init_supported_languages, Language};
 
 use std::env;
 
@@ -23,10 +23,7 @@ pub fn handle_args() -> Result<Language, &'static str> {
             let lang = args.next().expect("Language not found (e.g. python)");
             let lang = lang.trim().to_lowercase();
 
-            language = supported_languages
-                .languages
-                .into_iter()
-                .find(|l| l.name == lang);
+            language = supported_languages.languages.into_iter().find(|l| l.name == lang);
 
             break;
         }
@@ -38,4 +35,3 @@ pub fn handle_args() -> Result<Language, &'static str> {
 
     Ok(language.unwrap())
 }
-

@@ -1,12 +1,10 @@
 use std::io::{self, Read};
 
-use neospeller;
-use neospeller::grammar;
 use neospeller::buffer::Buffer;
-use crate::neospeller::language::CommentCollection;
+use neospeller::grammar;
+use neospeller::language::CommentCollection;
 
 fn main() {
-
     let language = neospeller::handle_args().unwrap_or_else(|err| {
         eprintln!("{}", err);
         std::process::exit(1);
@@ -38,7 +36,6 @@ fn main() {
     });
 
     let output = buffer.to_string();
-
 
     print!("{}", output);
 }

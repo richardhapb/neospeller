@@ -73,23 +73,19 @@ impl CommentCollection {
     pub fn to_comments(&self) -> Vec<Comment> {
         let mut comments: Vec<Comment> = vec![];
         for (line, text) in self.single_comments.iter() {
-            comments.push(
-                Comment {
-                    line: *line,
-                    text: text.to_string(),
-                    comment_type: CommentType::Single
-                }
-            );
+            comments.push(Comment {
+                line: *line,
+                text: text.to_string(),
+                comment_type: CommentType::Single,
+            });
         }
 
         for (line, text) in self.multiline_comments.iter() {
-            comments.push(
-                Comment {
-                    line: *line,
-                    text: text.to_string(),
-                    comment_type: CommentType::Multi
-                }
-            );
+            comments.push(Comment {
+                line: *line,
+                text: text.to_string(),
+                comment_type: CommentType::Multi,
+            });
         }
 
         comments
@@ -162,11 +158,7 @@ impl Comment {
 ///
 /// # Returns
 /// * [`Comment`] instance if comment has been parsed or `None`
-fn parse_single_line_comment<'a>(
-    language: &Language,
-    line: &str,
-    line_number: usize,
-) -> Option<Comment> {
+fn parse_single_line_comment(language: &Language, line: &str, line_number: usize) -> Option<Comment> {
     if let Some(pos) = line.find(&language.comment_symbol) {
         let comment_text = line[pos + language.comment_symbol.len()..].trim();
         if !comment_text.is_empty() {
@@ -189,11 +181,7 @@ fn parse_single_line_comment<'a>(
 ///
 /// # Returns
 /// * [`ParseState`] instance with the comments and lines parsed
-fn parse_multi_line_comment(
-    language: &Language,
-    lines: &[&str],
-    start_line: usize,
-) -> Option<ParseState> {
+fn parse_multi_line_comment(language: &Language, lines: &[&str], start_line: usize) -> Option<ParseState> {
     let mut comments = Vec::new();
     let mut lines_parsed = 0;
     let mut found_close = false;
@@ -206,7 +194,7 @@ fn parse_multi_line_comment(
         // Handle single-line multi-line comment for example in `python`:
         // """Single line comment in Python using multi-line symbol"""
         if let Some(end_pos) = text.find(&language.ml_comment_symbol_close) {
-            text = &text[..end_pos].trim();
+            text = text[..end_pos].trim();
             if !text.is_empty() {
                 comments.push(Comment::new(start_line, text.to_string(), comment_type));
             }

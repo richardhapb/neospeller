@@ -1,10 +1,12 @@
+use std::fmt::Display;
+
 use crate::language::{Comment, CommentCollection, CommentType, Language};
 
 /// Text Buffer
 pub struct Buffer {
     pub lines: Vec<String>,
     pub comments: Vec<Comment>,
-    pub language: Language
+    pub language: Language,
 }
 
 impl Buffer {
@@ -13,7 +15,7 @@ impl Buffer {
         Self {
             lines: Vec::new(),
             comments: Vec::new(),
-            language
+            language,
         }
     }
 
@@ -23,18 +25,13 @@ impl Buffer {
         Self {
             lines,
             comments: Vec::new(),
-            language
+            language,
         }
     }
 
     /// Add a line to [`Buffer`]
     pub fn push(&mut self, line: String) {
         self.lines.push(line);
-    }
-
-    /// Convert [`Buffer`] to a string
-    pub fn to_string(&self) -> String {
-        self.lines.join("\n")
     }
 
     /// Get comments from text of the buffer
@@ -67,6 +64,8 @@ impl Buffer {
             }
         }
 
+        comments = sort_comments_by_line_number(comments);
+
         self.comments = comments;
         &self.comments
     }
@@ -78,20 +77,12 @@ impl Buffer {
     ///
     /// # Returns
     /// * Error it the comment cannot be replaced
-    pub fn replace_comments(
-        &mut self,
-        new_comments: &Vec<Comment>,
-    ) -> Result<(), &'static str> {
+    pub fn replace_comments(&mut self, new_comments: &[Comment]) -> Result<(), &'static str> {
         for (i, comment) in new_comments.iter().enumerate() {
-            let line = self
-                .lines
-                .get_mut(comment.line - 1)
-                .ok_or("Line not found")?;
+            let line = self.lines.get_mut(comment.line - 1).ok_or("Line not found")?;
 
             let new_line = match comment.comment_type {
-                CommentType::Single => {
-                    replace_single_comment(line, &self.comments[i].text, &comment.text)
-                }
+                CommentType::Single => replace_single_comment(line, &self.comments[i].text, &comment.text),
                 CommentType::Multi => {
                     replace_multi_comment(line, &self.comments[i].text, &comment.text, &self.language)
                 }
@@ -104,13 +95,10 @@ impl Buffer {
     }
 
     /// Convert a json to buffer's comments and order by line number
-    /// 
+    ///
     /// # Params
     /// * `json_string`: Json to convert
-    pub fn json_to_comments(
-        &mut self,
-        json_string: &str,
-    ) -> Result<&Vec<Comment>, &'static str> {
+    pub fn json_to_comments(&mut self, json_string: &str) -> Result<&Vec<Comment>, &'static str> {
         let comments: CommentCollection =
             serde_json::from_str(json_string).map_err(|_| "Error parsing json string")?;
 
@@ -119,6 +107,13 @@ impl Buffer {
         self.comments = comments;
 
         Ok(&self.comments)
+    }
+}
+
+impl Display for Buffer {
+    /// Convert [`Buffer`] to a string
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lines.join("\n"))
     }
 }
 
@@ -138,7 +133,7 @@ fn sort_comments_by_line_number(mut comments: Vec<Comment>) -> Vec<Comment> {
     comments
 }
 
-/// Replace a single line comment 
+/// Replace a single line comment
 ///
 /// # Params
 /// * `line`: Line where comment is located
@@ -166,7 +161,7 @@ fn replace_single_comment(
     Err("No comment found")
 }
 
-/// Replace a multi line comment 
+/// Replace a multi line comment
 ///
 /// # Params
 /// * `line`: Line where comment is located
@@ -191,8 +186,7 @@ fn replace_multi_comment(
         result.push_str(new_comment);
 
         if line[sym_index..]
-            .find(&language.ml_comment_symbol_close)
-            .is_some()
+            .contains(&language.ml_comment_symbol_close)
         {
             if sym_index > 0 && line.as_bytes()[sym_index - 1] == b' ' {
                 result.push(' ');
@@ -308,10 +302,7 @@ mod tests {
         assert_eq!(comments[4].line, 12);
         assert_eq!(comments[4].comment_type, CommentType::Multi);
 
-        assert_eq!(
-            comments[5].text,
-            "Another unestruturated multi-line comment"
-        );
+        assert_eq!(comments[5].text, "Another unestruturated multi-line comment");
         assert_eq!(comments[5].line, 16);
         assert_eq!(comments[5].comment_type, CommentType::Multi);
 
@@ -363,10 +354,7 @@ mod tests {
         assert_eq!(comments[4].line, 12);
         assert_eq!(comments[4].comment_type, CommentType::Multi);
 
-        assert_eq!(
-            comments[5].text,
-            "Another unestruturated multi-line comment"
-        );
+        assert_eq!(comments[5].text, "Another unestruturated multi-line comment");
         assert_eq!(comments[5].line, 16);
         assert_eq!(comments[5].comment_type, CommentType::Multi);
 
@@ -374,7 +362,10 @@ mod tests {
         assert_eq!(comments[6].line, 17);
         assert_eq!(comments[6].comment_type, CommentType::Multi);
 
-        assert_eq!(comments[7].text, "Print debug information to compare with the visual content in the browser and verify the order.");
+        assert_eq!(
+            comments[7].text,
+            "Print debug information to compare with the visual content in the browser and verify the order."
+        );
         assert_eq!(comments[8].text, "Profiles online should be in the positions: [7, 57] and [3, 15, 17] according to the get_profiles_display_group_settings function.");
         assert_eq!(comments[9].text, "If you change the initial online IDs, another filter may capture them first. Check if this occurs.");
         assert_eq!(
@@ -423,7 +414,7 @@ mod tests {
     #[test]
     fn test_json_to_comments() {
         let json_string = r#"{"single_comments": {"1": "A class that represents a HttpRequest"},"multiline_comments": {"122": "Args:","124": "count -> int: The counter of a loop"}}"#;
-        let comments = serde_json::from_str::<CommentCollection>(&json_string)
+        let comments = serde_json::from_str::<CommentCollection>(json_string)
             .unwrap()
             .to_comments();
 
@@ -444,7 +435,7 @@ mod tests {
         );
 
         let json_string = r#"{  "single_comments": {    "42": "Another comment with spelling mistakes?"  },  "multiline_comments": {    "4": "Docstring of a function",    "6": "Args:",    "7": "dictarg (dict): A dictionary argument",    "19": "Multiline comment that is not a docstring",    "26": "Alice's Adventures in Wonderland by Lewis Carroll",    "27": "A Project Gutenberg eBook"  }}"#;
-        let comments = serde_json::from_str::<CommentCollection>(&json_string)
+        let comments = serde_json::from_str::<CommentCollection>(json_string)
             .unwrap()
             .to_comments();
 
@@ -455,10 +446,7 @@ mod tests {
 
         assert_eq!(
             comments_map.get(&42),
-            Some(&(
-                "Another comment with spelling mistakes?",
-                CommentType::Single
-            ))
+            Some(&("Another comment with spelling mistakes?", CommentType::Single))
         );
         assert_eq!(
             comments_map.get(&4),
@@ -471,10 +459,7 @@ mod tests {
         );
         assert_eq!(
             comments_map.get(&19),
-            Some(&(
-                "Multiline comment that is not a docstring",
-                CommentType::Multi
-            ))
+            Some(&("Multiline comment that is not a docstring", CommentType::Multi))
         );
         assert_eq!(
             comments_map.get(&26),
@@ -508,7 +493,6 @@ mod tests {
                 comment_type: CommentType::Multi,
             },
         ];
-
 
         let comments_collection = CommentCollection::from_comments(comments);
         let json = serde_json::to_string(&comments_collection).unwrap();
