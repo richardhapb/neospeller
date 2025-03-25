@@ -52,7 +52,7 @@ impl Buffer {
 
             // Attempt to parse the comment starting at the current line
             if let Ok(parse_state) =
-                Comment::parse_comment(&self.language, &self.lines[i..], i + 1, comment_type)
+                Comment::parse_comment(&self.language, &self.lines[i..], i, comment_type)
             {
                 if parse_state.lines_parsed > 0 {
                     comments.extend(parse_state.comments);
@@ -76,7 +76,7 @@ impl Buffer {
     /// * Error it the comment cannot be replaced
     pub fn replace_comments(&mut self, new_comments: &[Comment]) -> Result<(), &'static str> {
         for (i, comment) in new_comments.iter().enumerate() {
-            let line = self.lines.get_mut(comment.line - 1).ok_or("Line not found")?;
+            let line = self.lines.get_mut(comment.line).ok_or("Line not found")?;
 
             let new_line = match comment.comment_type {
                 CommentType::Single => replace_single_comment(line, &self.comments[i].text, &comment.text),
@@ -273,43 +273,44 @@ mod tests {
         };
 
         let mut buffer = Buffer::from_string(RUST_FIXTURE.to_string(), language);
+        println!("{:?}", buffer.lines);
         let comments = buffer.get_comments();
 
         assert_eq!(comments.len(), 8);
 
-        assert_eq!(comments[0].line, 2);
+        assert_eq!(comments[0].line, 1);
         assert_eq!(comments[0].text, "this is a single line comment");
         assert_eq!(comments[0].comment_type, CommentType::Single);
 
-        assert_eq!(comments[1].line, 6);
+        assert_eq!(comments[1].line, 5);
         assert_eq!(comments[1].text, "this is a");
         assert_eq!(comments[1].comment_type, CommentType::Multi);
 
         assert_eq!(comments[2].text, "multi-line comment");
         assert_eq!(comments[2].comment_type, CommentType::Multi);
-        assert_eq!(comments[2].line, 7);
+        assert_eq!(comments[2].line, 6);
 
         assert_eq!(
             comments[3].text,
             "Another multi-line comment, but in a single line"
         );
-        assert_eq!(comments[3].line, 10);
+        assert_eq!(comments[3].line, 9);
         assert_eq!(comments[3].comment_type, CommentType::Multi);
 
         assert_eq!(comments[4].text, "Unestruturated multi-line comment");
-        assert_eq!(comments[4].line, 12);
+        assert_eq!(comments[4].line, 11);
         assert_eq!(comments[4].comment_type, CommentType::Multi);
 
         assert_eq!(comments[5].text, "Another unestruturated multi-line comment");
-        assert_eq!(comments[5].line, 16);
+        assert_eq!(comments[5].line, 15);
         assert_eq!(comments[5].comment_type, CommentType::Multi);
 
         assert_eq!(comments[6].text, "With multiples lines");
-        assert_eq!(comments[6].line, 17);
+        assert_eq!(comments[6].line, 16);
         assert_eq!(comments[6].comment_type, CommentType::Multi);
 
         assert_eq!(comments[7].text, "/ * Documentation code");
-        assert_eq!(comments[7].line, 23);
+        assert_eq!(comments[7].line, 22);
         assert_eq!(comments[7].comment_type, CommentType::Single);
     }
 
@@ -329,35 +330,35 @@ mod tests {
 
         assert_eq!(comments.len(), 13);
 
-        assert_eq!(comments[0].line, 2);
+        assert_eq!(comments[0].line, 1);
         assert_eq!(comments[0].text, "this is a single line comment");
         assert_eq!(comments[0].comment_type, CommentType::Single);
 
-        assert_eq!(comments[1].line, 6);
+        assert_eq!(comments[1].line, 5);
         assert_eq!(comments[1].text, "this is a");
         assert_eq!(comments[1].comment_type, CommentType::Multi);
 
         assert_eq!(comments[2].text, "multi-line comment");
         assert_eq!(comments[2].comment_type, CommentType::Multi);
-        assert_eq!(comments[2].line, 7);
+        assert_eq!(comments[2].line, 6);
 
         assert_eq!(
             comments[3].text,
             "Another multi-line comment, but in a single line"
         );
-        assert_eq!(comments[3].line, 10);
+        assert_eq!(comments[3].line, 9);
         assert_eq!(comments[3].comment_type, CommentType::Multi);
 
         assert_eq!(comments[4].text, "Unestruturated multi-line comment");
-        assert_eq!(comments[4].line, 12);
+        assert_eq!(comments[4].line, 11);
         assert_eq!(comments[4].comment_type, CommentType::Multi);
 
         assert_eq!(comments[5].text, "Another unestruturated multi-line comment");
-        assert_eq!(comments[5].line, 16);
+        assert_eq!(comments[5].line, 15);
         assert_eq!(comments[5].comment_type, CommentType::Multi);
 
         assert_eq!(comments[6].text, "With multiples lines");
-        assert_eq!(comments[6].line, 17);
+        assert_eq!(comments[6].line, 16);
         assert_eq!(comments[6].comment_type, CommentType::Multi);
 
         assert_eq!(
@@ -370,8 +371,8 @@ mod tests {
             comments[10].text,
             "print(f\"profile_list[{position}]: {profiles_list[position]}\")"
         );
-        assert_eq!(comments[13].text, "last");
-        assert_eq!(comments[15].text, "comment");
+        assert_eq!(comments[11].text, "last");
+        assert_eq!(comments[12].text, "comment");
     }
 
     #[test]

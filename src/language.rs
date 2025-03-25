@@ -130,7 +130,7 @@ impl Comment {
             CommentType::Single => {
                 if let Some(comment) = parse_single_line_comment(language, &lines[0], start_line) {
                     comments.push(comment);
-                    lines_parsed = 1;
+                    lines_parsed = 1; //Always is one line
                 }
             }
             CommentType::Multi => {
@@ -160,6 +160,8 @@ impl Comment {
 fn parse_single_line_comment(language: &Language, line: &str, line_number: usize) -> Option<Comment> {
     if let Some(pos) = line.find(&language.comment_symbol) {
         let comment_text = line[pos + language.comment_symbol.len()..].trim();
+
+        // TODO: Ensure that is not between quotes
         if !comment_text.is_empty() {
             return Some(Comment::new(
                 line_number,
@@ -182,11 +184,11 @@ fn parse_single_line_comment(language: &Language, line: &str, line_number: usize
 /// * [`ParseState`] instance with the comments and lines parsed
 fn parse_multi_line_comment(language: &Language, lines: &[String], start_line: usize) -> Option<ParseState> {
     let mut comments = Vec::new();
-    let mut lines_parsed = 0;
     let comment_type = CommentType::Multi;
 
     let first_line = &lines[0];
     if let Some(start_pos) = first_line.find(&language.ml_comment_symbol) {
+        let mut lines_parsed = 1; // Always parse almost one line
         let mut text = first_line[start_pos + language.ml_comment_symbol.len()..].trim();
 
         // Handle single-line multi-line comment for example in `python`:
@@ -196,7 +198,6 @@ fn parse_multi_line_comment(language: &Language, lines: &[String], start_line: u
             if !text.is_empty() {
                 comments.push(Comment::new(start_line, text.to_string(), comment_type));
             }
-            lines_parsed = 1;
             return Some(ParseState {
                 comments,
                 lines_parsed,
@@ -210,10 +211,7 @@ fn parse_multi_line_comment(language: &Language, lines: &[String], start_line: u
             // """Comment in multi-line
             // using symbol in same line"""
             comments.push(Comment::new(start_line, text.to_string(), comment_type));
-            lines_parsed += 1;
         }
-
-        lines_parsed += 1;
 
         for (i, line) in lines[1..].iter().enumerate() {
             lines_parsed += 1;
@@ -222,7 +220,9 @@ fn parse_multi_line_comment(language: &Language, lines: &[String], start_line: u
             // Last line
             if let Some(end_pos) = text.find(&language.ml_comment_symbol_close) {
                 let text = text[..end_pos].trim().to_string();
-                comments.push(Comment::new(start_line + i + 1, text, comment_type));
+                if !text.is_empty() {
+                    comments.push(Comment::new(start_line + i + 1, text, comment_type));
+                }
                 break;
             }
 
