@@ -161,8 +161,12 @@ fn parse_single_line_comment(language: &Language, line: &str, line_number: usize
     if let Some(pos) = line.find(&language.comment_symbol) {
         let comment_text = line[pos + language.comment_symbol.len()..].trim();
 
-        // TODO: Ensure that is not between quotes
-        if !comment_text.is_empty() {
+        // Ensure that the quantity of quotes is not odd,
+        // that could indicate that the symbol is enclosed in quotes
+        let before = &line[..pos];
+        let quotes = before.chars().filter(|&c| c == '"' || c == '\'').count();
+
+        if !comment_text.is_empty() && quotes % 2 == 0 {
             return Some(Comment::new(
                 line_number,
                 comment_text.to_string(),
