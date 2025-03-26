@@ -201,67 +201,66 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const RUST_FIXTURE: &str = r#"
-        // this is a single line comment
-        let x = 5;
+    const RUST_FIXTURE: &str = r#"// this is a single line comment
+let x = 5;
 
-        /*
-        this is a
-        multi-line comment
-        */
+/*
+this is a
+multi-line comment
+*/
 
-        /* Another multi-line comment, but in a single line */
+/* Another multi-line comment, but in a single line */
 
-        /* Unestruturated multi-line comment
-        */
+/* Unestruturated multi-line comment
+*/
 
-        /* 
-        Another unestruturated multi-line comment 
-        With multiples lines */
+    /* 
+    Another unestruturated multi-line comment 
+    With multiples lines */
 
-        foo();
+foo();
 
-        bar = 5;
+bar = 5;
 
-        /// * Documentation code
+/// * Documentation code
         "#;
 
-    const PYTHON_FIXTURE: &str = r#"
-        # this is a single line comment
-        x = 5
+    const PYTHON_FIXTURE: &str = r#""""
+this is a
+multi-line comment
+"""
 
-        """
-        this is a
-        multi-line comment
-        """
-
-        """Another multi-line comment, but in a single line"""
-
-        """ Unestruturated multi-line comment
-        """
-
-        """ 
-        Another unestruturated multi-line comment 
-        With multiples lines """
-
-        foo()
-
-        bar = 5
-
-        string = "hello"
-        another = 'hello'
-
-        # Print debug information to compare with the visual content in the browser and verify the order.
-        # Profiles online should be in the positions: [7, 57] and [3, 15, 17] according to the get_profiles_display_group_settings function.
-        # If you change the initial online IDs, another filter may capture them first. Check if this occurs.
-        # print(f"profile_list[{position}]: {profiles_list[position]}")
+# this is a single line comment
+x = 5
 
 
+"""Another multi-line comment, but in a single line"""
 
-        CONSTANT = 5
-        """ last """
-        """ comment """
-        "#;
+""" Unestruturated multi-line comment
+"""
+
+""" 
+Another unestruturated multi-line comment 
+With multiples lines """
+
+foo()
+
+bar = 5
+
+string = "hello"
+another = 'hello'
+
+    # Print debug information to compare with the visual content in the browser and verify the order.
+    # Profiles online should be in the positions: [7, 57] and [3, 15, 17] according to the get_profiles_display_group_settings function.
+    # If you change the initial online IDs, another filter may capture them first. Check if this occurs.
+    # print(f"profile_list[{position}]: {profiles_list[position]}")
+
+
+
+CONSTANT = 5
+""" last """
+""" comment """
+"#;
 
     #[test]
     fn test_get_comments_rust() {
@@ -273,44 +272,43 @@ mod tests {
         };
 
         let mut buffer = Buffer::from_string(RUST_FIXTURE.to_string(), language);
-        println!("{:?}", buffer.lines);
         let comments = buffer.get_comments();
 
         assert_eq!(comments.len(), 8);
 
-        assert_eq!(comments[0].line, 1);
+        assert_eq!(comments[0].line, 0);
         assert_eq!(comments[0].text, "this is a single line comment");
         assert_eq!(comments[0].comment_type, CommentType::Single);
 
-        assert_eq!(comments[1].line, 5);
+        assert_eq!(comments[1].line, 4);
         assert_eq!(comments[1].text, "this is a");
         assert_eq!(comments[1].comment_type, CommentType::Multi);
 
         assert_eq!(comments[2].text, "multi-line comment");
         assert_eq!(comments[2].comment_type, CommentType::Multi);
-        assert_eq!(comments[2].line, 6);
+        assert_eq!(comments[2].line, 5);
 
         assert_eq!(
             comments[3].text,
             "Another multi-line comment, but in a single line"
         );
-        assert_eq!(comments[3].line, 9);
+        assert_eq!(comments[3].line, 8);
         assert_eq!(comments[3].comment_type, CommentType::Multi);
 
         assert_eq!(comments[4].text, "Unestruturated multi-line comment");
-        assert_eq!(comments[4].line, 11);
+        assert_eq!(comments[4].line, 10);
         assert_eq!(comments[4].comment_type, CommentType::Multi);
 
         assert_eq!(comments[5].text, "Another unestruturated multi-line comment");
-        assert_eq!(comments[5].line, 15);
+        assert_eq!(comments[5].line, 14);
         assert_eq!(comments[5].comment_type, CommentType::Multi);
 
         assert_eq!(comments[6].text, "With multiples lines");
-        assert_eq!(comments[6].line, 16);
+        assert_eq!(comments[6].line, 15);
         assert_eq!(comments[6].comment_type, CommentType::Multi);
 
         assert_eq!(comments[7].text, "/ * Documentation code");
-        assert_eq!(comments[7].line, 22);
+        assert_eq!(comments[7].line, 21);
         assert_eq!(comments[7].comment_type, CommentType::Single);
     }
 
@@ -326,21 +324,19 @@ mod tests {
         let mut buffer = Buffer::from_string(PYTHON_FIXTURE.to_string(), language);
         let comments = buffer.get_comments();
 
-        println!("{:?}", comments);
-
         assert_eq!(comments.len(), 13);
 
         assert_eq!(comments[0].line, 1);
-        assert_eq!(comments[0].text, "this is a single line comment");
-        assert_eq!(comments[0].comment_type, CommentType::Single);
+        assert_eq!(comments[0].text, "this is a");
+        assert_eq!(comments[0].comment_type, CommentType::Multi);
 
-        assert_eq!(comments[1].line, 5);
-        assert_eq!(comments[1].text, "this is a");
+        assert_eq!(comments[1].text, "multi-line comment");
         assert_eq!(comments[1].comment_type, CommentType::Multi);
+        assert_eq!(comments[1].line, 2);
 
-        assert_eq!(comments[2].text, "multi-line comment");
-        assert_eq!(comments[2].comment_type, CommentType::Multi);
-        assert_eq!(comments[2].line, 6);
+        assert_eq!(comments[2].line, 5);
+        assert_eq!(comments[2].text, "this is a single line comment");
+        assert_eq!(comments[2].comment_type, CommentType::Single);
 
         assert_eq!(
             comments[3].text,
@@ -399,11 +395,12 @@ mod tests {
 
         buffer.replace_comments(&new_comments).unwrap();
 
-        assert_eq!(buffer.lines[1].trim(), "# this is e single line comment");
-        assert_eq!(buffer.lines[4].trim(), "\"\"\"");
-        assert_eq!(buffer.lines[5].trim(), "this is e");
-        assert_eq!(buffer.lines[6].trim(), "multi-line comment"); // Not change
-        assert_eq!(buffer.lines[7].trim(), "\"\"\"");
+        assert_eq!(buffer.lines[0].trim(), "\"\"\"");
+        assert_eq!(buffer.lines[1].trim(), "this is e");
+        assert_eq!(buffer.lines[2].trim(), "multi-line comment"); // Not change
+        assert_eq!(buffer.lines[3].trim(), "\"\"\"");
+        assert_eq!(buffer.lines[4].trim(), "");
+        assert_eq!(buffer.lines[5].trim(), "# this is e single line comment");
         assert_eq!(
             buffer.lines[9].trim(),
             "\"\"\"Another multi-line comment, but in e single line\"\"\""
