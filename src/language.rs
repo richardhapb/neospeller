@@ -318,12 +318,20 @@ pub fn init_supported_languages() -> SupportedLanguages {
         ml_comment_symbol_close: "*/".to_string(),
     };
 
+    let bash = Language {
+        name: "bash".to_string(),
+        comment_symbol: "#".to_string(),
+        ml_comment_symbol: ": '".to_string(),
+        ml_comment_symbol_close: "'".to_string(),
+    };
+
     languages.push(python);
     languages.push(javascript);
     languages.push(rust);
     languages.push(css);
     languages.push(lua);
     languages.push(c);
+    languages.push(bash);
 
     SupportedLanguages { languages }
 }

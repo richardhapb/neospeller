@@ -108,6 +108,7 @@ Available languages and their respective codes:
 - CSS (css)
 - C
 - Lua
+- Bash
 
 <!-- CONTRIBUTING -->
 ## Contributing
