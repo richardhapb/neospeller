@@ -34,8 +34,24 @@ impl Buffer {
         self.lines.push(line);
     }
 
-    /// Get comments from text of the buffer
+    pub fn plain_text_to_comments(&mut self) {
+        for (i, text) in self.lines.iter().enumerate() {
+            self.comments.push(Comment {
+                line: i,
+                text: text.clone(),
+                comment_type: CommentType::Multi,
+            });
+        }
+    }
+
+    /// Retrieve comments from the text in the buffer
     pub fn get_comments(&mut self) -> &Vec<Comment> {
+        // If the language is plain text, process directly
+        if self.language.name == "text" {
+            self.plain_text_to_comments();
+            return &self.comments;
+        }
+
         let mut comments = Vec::new();
         let mut i = 0;
 
@@ -51,8 +67,7 @@ impl Buffer {
             let comment_type = self.language.get_comment_type(line);
 
             // Attempt to parse the comment starting at the current line
-            if let Ok(parse_state) =
-                Comment::parse_comment(&self.language, &self.lines[i..], i, comment_type)
+            if let Ok(parse_state) = Comment::parse_comment(&self.language, &self.lines[i..], i, comment_type)
             {
                 if parse_state.lines_parsed > 0 {
                     comments.extend(parse_state.comments);
@@ -198,6 +213,8 @@ fn replace_multi_comment(
 
 #[cfg(test)]
 mod tests {
+    use crate::language::init_supported_languages;
+
     use super::*;
     use std::collections::HashMap;
 
@@ -497,5 +514,44 @@ CONSTANT = 5
         assert!(json.contains("\"124\":\"count -> int: The counter of a loop\""));
         assert!(json.contains("\"122\":\"Args:\""));
         assert!(json.contains("\"multiline_comments\""));
+    }
+
+    #[test]
+    fn test_plain_text() {
+        let languages = init_supported_languages();
+        let language = languages
+            .languages
+            .into_iter()
+            .find(|l| l.name == "text")
+            .unwrap();
+
+
+        // Ensure correct parsing and keep special characters, like commas (sometimes the
+        // comma is removed). Also ensure the correct return of the buffer and its replacement with
+        // new comments.
+
+        let text = r#"sticky = "Always take focus in the main concepts, i want to understand the stuff, not only copy paste","#;
+        let mut buffer = Buffer::from_string(text.to_string(), language);
+        let comments = buffer.get_comments();
+
+        // One line
+        assert_eq!(comments.len(), 1);
+
+        // Keep comma
+        let result_text = comments.first().unwrap().text.clone();
+        assert_eq!(result_text.chars().last().unwrap(), ',');
+
+        // Simulate API response
+        let text = r#"{"single_comments":{},"multiline_comments":{"0":"sticky = \"Always focus on the main concepts; I want to understand the material, not just copy and paste\","}}"#;
+
+        let comments_collection = CommentCollection::from_comments(buffer.comments);
+        let parsed_comments = serde_json::to_string(&comments_collection).unwrap();
+
+        buffer.comments = comments_collection.to_comments();
+        buffer.json_to_comments(text).unwrap();
+
+        // Must keep the comma.
+        assert!(parsed_comments[parsed_comments.len() - 4..].contains(','));
+        assert_eq!(buffer.to_string().chars().last().unwrap(), ',');
     }
 }

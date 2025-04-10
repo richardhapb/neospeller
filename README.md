@@ -106,9 +106,10 @@ Available languages and their respective codes:
 - Rust (rust)
 - Javascript (javascript)
 - CSS (css)
-- C
-- Lua
-- Bash
+- C (c)
+- Lua (lua)
+- Bash (bash)
+- Plain text (text)
 
 <!-- CONTRIBUTING -->
 ## Contributing

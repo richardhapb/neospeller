@@ -32,9 +32,10 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
     let initial_prompt = format!(
         r#"I will send you a JSON containing comments from a {} source file. Your task is to check the grammar and ensure that the comments are straightforward, clear, and concise. Respond in the same JSON format, including the line number and the corrected text.
 
-- Do not add periods at the end of lines unless they are necessary for clarity.
+- Do not remove or add punctuation at the end of lines unless necessary for clarity
 - Do not remove formatters such as '-' or '*'; preserve the original formatting and change only the text when necessary.
 - Do not change the line numbers for each comment, mantain the original line numbers.
+- Keep quotes if they exist, along with language syntax such as commas, brackets, etc.
 - Do not replace variable names like line_number to line number
 - Do not mix single-line comments with multi-line comments; keep them separate."#,
         language
