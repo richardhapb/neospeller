@@ -104,7 +104,8 @@ Available languages and their respective codes:
 
 - Python (python)
 - Rust (rust)
-- Javascript (javascript)
+- Go (go)
+- JavaScript (javascript)
 - CSS (css)
 - C (c)
 - Lua (lua)
