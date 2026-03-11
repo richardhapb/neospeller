@@ -332,6 +332,13 @@ pub fn init_supported_languages() -> SupportedLanguages {
         ml_comment_symbol_close: "*/".to_string(),
     };
 
+    let ruby = Language {
+        name: "ruby".to_string(),
+        comment_symbol: "#".to_string(),
+        ml_comment_symbol: "=begin".to_string(),
+        ml_comment_symbol_close: "=end".to_string(),
+    };
+
     let text = Language {
         name: "text".to_string(),
         comment_symbol: "".to_string(),
@@ -347,6 +354,7 @@ pub fn init_supported_languages() -> SupportedLanguages {
     languages.push(c);
     languages.push(bash);
     languages.push(go);
+    languages.push(ruby);
     languages.push(text);
 
     SupportedLanguages { languages }
