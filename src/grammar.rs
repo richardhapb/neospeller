@@ -26,7 +26,10 @@ struct Message {
     content: String,
 }
 
-pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn check_grammar(
+    json_data: &str,
+    language: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     let openai_token = env::var("OPENAI_API_KEY")?;
 
     let initial_prompt = format!(
@@ -41,7 +44,8 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
         language
     );
 
-    let url = env::var("OPENAI_API_BASE_URL").unwrap_or_else(|_| "https://api.openai.com".to_string());
+    let url =
+        env::var("OPENAI_API_BASE_URL").unwrap_or_else(|_| "https://api.openai.com".to_string());
     let client = Client::new();
 
     let res = client
@@ -49,7 +53,7 @@ pub fn check_grammar(json_data: &str, language: &str) -> Result<String, Box<dyn 
         .header("Authorization", format!("Bearer {}", openai_token))
         .header("Content-Type", "application/json")
         .json(&json!({
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-5.4-nano",
             "messages": [
                 {
                     "role": "system",
