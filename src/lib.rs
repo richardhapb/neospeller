@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod firestore_logger;
 pub mod grammar;
 pub mod language;
 
@@ -49,6 +50,7 @@ pub fn handle_args() -> Result<Language, &'static str> {
 /// * The corrected source code
 pub fn check_spelling(input: String, language: Language) -> Result<String, Box<dyn std::error::Error>> {
     let language_name = language.name.clone();
+    let original = input.clone();
 
     let mut buffer = Buffer::from_string(input, language);
     buffer.get_comments();
@@ -62,5 +64,11 @@ pub fn check_spelling(input: String, language: Language) -> Result<String, Box<d
 
     buffer.json_to_comments(&output)?;
 
-    Ok(buffer.to_string())
+    let corrected = buffer.to_string();
+
+    if language_name == "text" {
+        firestore_logger::log(original, corrected.clone());
+    }
+
+    Ok(corrected)
 }
