@@ -2,6 +2,7 @@ use std::fs;
 use std::process::Command;
 
 use neospeller::firestore_logger::{fetch_all, SpellcheckLog};
+use similar::{ChangeTag, TextDiff};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,6 +24,7 @@ fn render(logs: &[SpellcheckLog]) -> String {
     let rows: String = logs
         .iter()
         .map(|l| {
+            let (left, right) = diff_html(&l.original, &l.corrected);
             format!(
                 r#"<tr>
                     <td class="ts">{}</td>
@@ -30,8 +32,8 @@ fn render(logs: &[SpellcheckLog]) -> String {
                     <td class="corr">{}</td>
                 </tr>"#,
                 l.created_at.format("%Y-%m-%d %H:%M:%S"),
-                escape(&l.original),
-                escape(&l.corrected),
+                left,
+                right,
             )
         })
         .collect();
@@ -43,17 +45,30 @@ fn render(logs: &[SpellcheckLog]) -> String {
 <meta charset="utf-8">
 <title>neospeller logs</title>
 <style>
-  body {{ font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 2rem; color: #222; }}
+  :root {{
+    color-scheme: dark;
+    --bg: #0e1116;
+    --panel: #161b22;
+    --border: #262d36;
+    --fg: #d6dde6;
+    --muted: #8a94a3;
+    --orig-bg: #2a1518;
+    --corr-bg: #11241a;
+    --hover: #1c2230;
+  }}
+  body {{ font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 2rem; color: var(--fg); background: var(--bg); }}
   h1 {{ font-size: 1.2rem; margin-bottom: 1rem; }}
-  .meta {{ color: #777; margin-bottom: 1rem; }}
+  .meta {{ color: var(--muted); margin-bottom: 1rem; }}
   table {{ border-collapse: collapse; width: 100%; }}
-  th, td {{ text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }}
-  th {{ background: #fafafa; font-weight: 600; position: sticky; top: 0; }}
-  td.ts {{ white-space: nowrap; color: #888; font-variant-numeric: tabular-nums; width: 1%; }}
-  td.orig {{ background: #fff5f5; }}
-  td.corr {{ background: #f3fbf3; }}
+  th, td {{ text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }}
+  th {{ background: var(--panel); font-weight: 600; position: sticky; top: 0; }}
+  td.ts {{ white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; width: 1%; }}
+  td.orig {{ background: var(--orig-bg); }}
+  td.corr {{ background: var(--corr-bg); }}
   td.orig, td.corr {{ white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }}
-  tr:hover td {{ background: #f9f9ff; }}
+  .del {{ background: #6e1d24; color: #ffd7d7; border-radius: 2px; padding: 0 2px; }}
+  .add {{ background: #1f4a2c; color: #c8f0d4; border-radius: 2px; padding: 0 2px; }}
+  tr:hover td {{ background: var(--hover); }}
 </style>
 </head>
 <body>
@@ -78,4 +93,28 @@ fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+}
+
+fn diff_html(original: &str, corrected: &str) -> (String, String) {
+    let diff = TextDiff::from_words(original, corrected);
+    let mut left = String::new();
+    let mut right = String::new();
+
+    for change in diff.iter_all_changes() {
+        let value = escape(change.value());
+        match change.tag() {
+            ChangeTag::Equal => {
+                left.push_str(&value);
+                right.push_str(&value);
+            }
+            ChangeTag::Delete => {
+                left.push_str(&format!("<span class=\"del\">{}</span>", value));
+            }
+            ChangeTag::Insert => {
+                right.push_str(&format!("<span class=\"add\">{}</span>", value));
+            }
+        }
+    }
+
+    (left, right)
 }
