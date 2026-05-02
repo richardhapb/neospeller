@@ -6,10 +6,26 @@ const PROJECT_ID: &str = "neospeller";
 const COLLECTION: &str = "spellcheck_logs";
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SpellcheckLog {
-    original: String,
-    corrected: String,
-    created_at: DateTime<Utc>,
+pub struct SpellcheckLog {
+    pub original: String,
+    pub corrected: String,
+    pub created_at: DateTime<Utc>,
+}
+
+pub async fn fetch_all() -> Result<Vec<SpellcheckLog>, Box<dyn std::error::Error>> {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    let db = FirestoreDb::new(PROJECT_ID).await?;
+
+    let docs: Vec<SpellcheckLog> = db
+        .fluent()
+        .select()
+        .from(COLLECTION)
+        .obj()
+        .query()
+        .await?;
+
+    Ok(docs)
 }
 
 async fn append(original: String, corrected: String) -> Result<(), Box<dyn std::error::Error>> {
