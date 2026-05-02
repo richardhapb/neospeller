@@ -1,16 +1,30 @@
 use std::fs;
 use std::process::Command;
 
-use neospeller::firestore_logger::{fetch_all, SpellcheckLog};
+use neospeller::firestore_logger::{fetch_all, read_fallback_file, SpellcheckLog};
 use similar::{ChangeTag, TextDiff};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Fetching logs from Firestore...");
-    let mut logs = fetch_all().await?;
+    let mut logs = match fetch_all().await {
+        Ok(docs) => {
+            eprintln!("  Firestore: {}", docs.len());
+            docs
+        }
+        Err(err) => {
+            eprintln!("  Firestore unavailable: {}", err);
+            Vec::new()
+        }
+    };
+
+    let local = read_fallback_file();
+    eprintln!("  Local ~/.neospeller: {}", local.len());
+    logs.extend(local);
+
     logs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
-    eprintln!("Got {} logs. Writing logs.html...", logs.len());
+    eprintln!("Writing logs.html ({} entries)...", logs.len());
     let html = render(&logs);
     fs::write("logs.html", html)?;
 
