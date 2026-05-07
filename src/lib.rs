@@ -66,9 +66,7 @@ pub fn check_spelling(input: String, language: Language) -> Result<String, Box<d
 
     let corrected = buffer.to_string();
 
-    if language_name == "text" {
-        firestore_logger::log(original, corrected.clone());
-    }
+    firestore_logger::spool(original, corrected.clone());
 
     Ok(corrected)
 }

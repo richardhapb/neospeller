@@ -3,6 +3,18 @@ name = "neospeller"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "neospeller"
+path = "src/main.rs"
+
+[[bin]]
+name = "viewer"
+path = "src/bin/viewer.rs"
+
+[[bin]]
+name = "flush"
+path = "src/bin/flush.rs"
+
 [dependencies]
 reqwest = { version = "0.12.12", features = ["blocking", "json"] }
 serde_json = { version = "1.0.138" }
